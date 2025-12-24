@@ -288,3 +288,48 @@ body {
   mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
   -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
 }
+
+@layer utilities {
+  .animate-apple-in {
+    opacity: 0;
+    animation: apple-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .stagger-1 {
+    animation-delay: 150ms;
+  }
+
+  .stagger-2 {
+    animation-delay: 300ms;
+  }
+
+  .stagger-3 {
+    animation-delay: 450ms;
+  }
+
+  @keyframes apple-in {
+    from {
+      opacity: 0;
+      transform: translateY(30px) scale(0.92);
+      filter: blur(8px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  .depth-1 {
+    box-shadow: 0 4px 20px -5px rgba(139, 115, 85, 0.1);
+  }
+
+  .depth-2 {
+    box-shadow: 0 12px 40px -10px rgba(139, 115, 85, 0.2);
+  }
+
+  .depth-3 {
+    box-shadow: 0 25px 60px -15px rgba(139, 115, 85, 0.25);
+  }
+}
