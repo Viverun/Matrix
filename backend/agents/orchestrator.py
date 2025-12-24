@@ -5,6 +5,8 @@ import asyncio
 from typing import List, Dict, Any, Optional, Type
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urljoin
+
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from .github_agent import GithubSecurityAgent
@@ -257,16 +259,23 @@ class AgentOrchestrator:
         Returns:
             List of discovered endpoints
         """
-        # Basic endpoint discovery - would be enhanced with actual crawling
+        # Ensure target_url has scheme
+        if not target_url.startswith(("http://", "https://")):
+            target_url = f"https://{target_url}"
+            
+        # Ensure target_url doesn't have duplicate slashes when joining
+        base_url = target_url.rstrip("/")
+        
         endpoints = [
-            {"url": target_url, "method": "GET", "params": {}},
-            {"url": f"{target_url}/xss", "method": "GET", "params": {"q": "<script>alert(1)</script>"}},
-            {"url": f"{target_url}/sqli", "method": "GET", "params": {"id": "1' OR '1'='1"}},
-            {"url": f"{target_url}/login", "method": "GET", "params": {}},
-            {"url": f"{target_url}/login", "method": "POST", "params": {"username": "", "password": ""}},
-            {"url": f"{target_url}/api", "method": "GET", "params": {}},
-            {"url": f"{target_url}/search", "method": "GET", "params": {"q": ""}},
+            {"url": base_url, "method": "GET", "params": {}},
+            {"url": f"{base_url}/xss", "method": "GET", "params": {"q": "<script>alert(1)</script>"}},
+            {"url": f"{base_url}/sqli", "method": "GET", "params": {"id": "1' OR '1'='1"}},
+            {"url": f"{base_url}/login", "method": "GET", "params": {}},
+            {"url": f"{base_url}/login", "method": "POST", "params": {"username": "", "password": ""}},
+            {"url": f"{base_url}/api", "method": "GET", "params": {}},
+            {"url": f"{base_url}/search", "method": "GET", "params": {"q": ""}},
         ]
+
         
         return endpoints
     

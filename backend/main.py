@@ -13,6 +13,8 @@ from api import auth_router, scans_router, vulnerabilities_router, test_bench
 from agents.orchestrator import orchestrator
 from agents.xss_agent import XSSAgent
 from agents.sql_injection_agent import SQLInjectionAgent
+from agents.auth_agent import AuthenticationAgent
+from agents.api_security_agent import APISecurityAgent
 
 settings = get_settings()
 
@@ -27,6 +29,9 @@ async def lifespan(app: FastAPI):
     # Register agents
     orchestrator.register_agent(XSSAgent())
     orchestrator.register_agent(SQLInjectionAgent())
+    orchestrator.register_agent(AuthenticationAgent())
+    orchestrator.register_agent(APISecurityAgent())
+    print("[Main] Security agents registered")
     
     print("Database initialized and Agents registered")
     

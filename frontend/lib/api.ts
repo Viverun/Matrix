@@ -146,7 +146,7 @@ class ApiClient {
             total: number;
             page: number;
             size: number;
-        }>(`/api/vulnerabilities/scan/${scanId}?page=${page}&size=${size}`);
+        }>(`/api/vulnerabilities/?scan_id=${scanId}&page=${page}&size=${size}`);
     }
 
     async getVulnerabilitySummary(scanId: number) {
