@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     
     # AI
     groq_api_key: str = ""
+    openrouter_api_key: str = ""
     
     # Database
     database_url: str = "sqlite+aiosqlite:///./cybermatrix.db"

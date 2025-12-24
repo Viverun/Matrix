@@ -26,6 +26,12 @@ export default function Home() {
                         <Link href="/scan" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             Scan
                         </Link>
+                        <Link href="/hub" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                            Features
+                        </Link>
+                        <Link href="/repo" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                            Repository
+                        </Link>
                         <Link href="/dashboard" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             Dashboard
                         </Link>
@@ -38,7 +44,7 @@ export default function Home() {
                         <button className="btn-secondary hidden sm:block">
                             Sign In
                         </button>
-                        <Link href="/scan" className="btn-primary">
+                        <Link href="/hub" className="btn-primary">
                             Get Started
                         </Link>
                     </div>
@@ -59,7 +65,7 @@ export default function Home() {
 
                         <div className="pt-4">
                             <Link
-                                href="/scan"
+                                href="/hub"
                                 className="btn-primary rounded-none inline-flex items-center gap-3 text-lg px-10 py-5 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
                             >
                                 Dive into Matrix
@@ -165,7 +171,7 @@ export default function Home() {
                             Start your first scan in seconds. No complex setup required.
                         </p>
                         <Link
-                            href="/scan"
+                            href="/hub"
                             className="btn-primary inline-flex items-center gap-2"
                         >
                             Dive into Matrix

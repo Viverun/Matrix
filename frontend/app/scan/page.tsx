@@ -59,8 +59,14 @@ export default function ScanPage() {
                         <Link href="/" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             About
                         </Link>
+                        <Link href="/hub" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                            Features
+                        </Link>
                         <Link href="/scan" className="text-accent-primary font-medium">
                             Scan
+                        </Link>
+                        <Link href="/repo" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                            Repository
                         </Link>
                         <Link href="/dashboard" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             Dashboard
@@ -74,9 +80,9 @@ export default function ScanPage() {
                         <button className="btn-secondary hidden sm:block">
                             Sign In
                         </button>
-                        <button className="btn-primary">
+                        <Link href="/hub" className="btn-primary">
                             Get Started
-                        </button>
+                        </Link>
                     </div>
                 </div>
             </header>

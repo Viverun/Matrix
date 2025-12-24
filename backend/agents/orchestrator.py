@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import Enum
 
 from .base_agent import BaseSecurityAgent, AgentResult
+from .github_agent import GithubSecurityAgent
 from models.scan import Scan, ScanStatus
 from models.vulnerability import Vulnerability, Severity, VulnerabilityType
 
@@ -33,6 +34,14 @@ class AgentOrchestrator:
     def __init__(self):
         """Initialize the orchestrator."""
         self.agents: Dict[str, BaseSecurityAgent] = {}
+        self.results: List[AgentResult] = []
+        self.current_phase: ScanPhase = ScanPhase.RECONNAISSANCE
+        self.progress: int = 0
+        self.is_running: bool = False
+        self.should_cancel: bool = False
+        
+        # Register default agents
+        self.register_agent(GithubSecurityAgent())
         self.results: List[AgentResult] = []
         self.current_phase: ScanPhase = ScanPhase.RECONNAISSANCE
         self.progress: int = 0
@@ -97,13 +106,20 @@ class AgentOrchestrator:
             await self._update_progress(5, "Analyzing target...")
             
             if endpoints is None:
-                endpoints = await self._discover_endpoints(target_url)
+                if "github.com" in target_url:
+                    # Skip common discovery for GitHub URLs
+                    endpoints = [{"url": target_url, "method": "GIT", "params": {}}]
+                else:
+                    endpoints = await self._discover_endpoints(target_url)
             
             print(f"[ORCHESTRATOR DEBUG] Target: {target_url}")
             print(f"[ORCHESTRATOR DEBUG] Endpoints: {len(endpoints)}")
             
             if technology_stack is None:
-                technology_stack = await self._detect_technology(target_url)
+                if "github.com" in target_url:
+                    technology_stack = ["GitHub Repository", "Source Code"]
+                else:
+                    technology_stack = await self._detect_technology(target_url)
             
             await self._update_progress(15, "Discovery complete")
             
@@ -112,8 +128,21 @@ class AgentOrchestrator:
             
             # Determine which agents to run
             agents_to_run = []
+            
+            # Auto-enable Github agent for github URLs if not specified
+            is_github_target = "github.com" in target_url
+            
             for name, agent in self.agents.items():
-                if agents_enabled is None or name in agents_enabled:
+                if agents_enabled is None:
+                    if is_github_target:
+                        # Only run GitHub agent for repos by default
+                        if name == "github_security":
+                            agents_to_run.append(agent)
+                    else:
+                        # Run web agents for regular URLs
+                        if name != "github_security":
+                            agents_to_run.append(agent)
+                elif name in agents_enabled:
                     agents_to_run.append(agent)
             
             print(f"[ORCHESTRATOR DEBUG] Agents to run: {[a.agent_name for a in agents_to_run]}")
