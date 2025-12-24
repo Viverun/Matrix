@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    Shield,
     Github,
     Send,
     MessageSquare,
@@ -18,6 +17,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { SpiderWeb } from '../../components/SpiderWeb';
+import { Navbar } from '../../components/Navbar';
+import { useAuth } from '../../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 const MOCK_FILES = [
     'backend/main.py',
@@ -35,6 +38,8 @@ const MOCK_FILES = [
 ];
 
 export default function RepoAnalysisPage() {
+    const { isAuthenticated } = useAuth();
+    const router = useRouter();
     const [repoUrl, setRepoUrl] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isAuditDone, setIsAuditDone] = useState(false);
@@ -65,6 +70,12 @@ export default function RepoAnalysisPage() {
 
     const handleAnalyze = async () => {
         if (!repoUrl) return;
+
+        // Check authentication before allowing analysis
+        if (!isAuthenticated) {
+            router.push('/login?message=You need to be authenticated to analyze repositories');
+            return;
+        }
         setIsAnalyzing(true);
         setIsAuditDone(false);
         setProgress(0);
@@ -122,6 +133,7 @@ export default function RepoAnalysisPage() {
 
     return (
         <div className="min-h-screen bg-bg-primary">
+            <Navbar />
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 grid lg:grid-cols-2 gap-8 min-h-[calc(100vh-80px)]">
                 {/* LEFT PANEL */}
@@ -314,7 +326,7 @@ export default function RepoAnalysisPage() {
                                                 {msg.role === 'assistant' ? (
                                                     <Cpu className="w-3 h-3 opacity-70" />
                                                 ) : (
-                                                    <Shield className="w-3 h-3 opacity-70" />
+                                                    <SpiderWeb className="w-3 h-3 opacity-70" />
                                                 )}
                                                 <span className="text-[10px] uppercase font-bold tracking-widest opacity-60">
                                                     {msg.role === 'assistant' ? 'Matrix AI' : 'Security Lead'}

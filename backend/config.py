@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # Application
-    app_name: str = "CyberMatrix"
+    app_name: str = "Matrix"
     debug: bool = True
     
     # AI
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     
     # Database
-    database_url: str = "sqlite+aiosqlite:///./cybermatrix.db"
+    database_url: str = "sqlite+aiosqlite:///./matrix.db"
     
     # JWT Authentication
     secret_key: str = "change-this-in-production"

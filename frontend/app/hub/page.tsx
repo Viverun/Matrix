@@ -1,14 +1,22 @@
 'use client';
+import React, { useState, useEffect } from 'react';
 
-import { Shield, Zap, Search, Code, FileText, ArrowRight, Activity, Database, Lock, Terminal } from 'lucide-react';
+import { Zap, Search, Code, FileText, ArrowRight, Activity, Database, Lock, Terminal, LogOut } from 'lucide-react';
 import Link from 'next/link';
+import { SpiderWeb } from '../../components/SpiderWeb';
+import { useAuth } from '../../context/AuthContext';
+
+import { Navbar } from '../../components/Navbar';
 
 export default function HubPage() {
+    const { user, logout } = useAuth();
+    // Navbar visible/scroll logic moved to Navbar component
+
     const features = [
         {
             title: 'Security Scanner',
             description: 'Intelligent multi-agent web vulnerability scanner targeting OWASP Top 10.',
-            icon: Shield,
+            icon: SpiderWeb,
             href: '/scan',
             color: 'text-accent-primary',
             bg: 'bg-accent-primary/5',
@@ -37,39 +45,19 @@ export default function HubPage() {
         },
         {
             title: 'Past Reports',
-            description: 'Access detailed vulnerability history and remediation trends.',
+            description: 'Access detailed vulnerability history, trend analysis, and security insights.',
             icon: Activity,
-            href: '/dashboard',
+            href: '/analytics',
             color: 'text-green-500',
             bg: 'bg-green-500/5',
             border: 'border-green-500/20',
-            tags: ['Results', 'Audit']
+            tags: ['Analytics', 'Trends']
         }
     ];
 
     return (
         <div className="min-h-screen bg-bg-primary">
-            {/* Navbar */}
-            <header className="glass-nav sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-primary to-accent-primary/80 flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow">
-                            <Shield className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-xl font-serif font-medium text-text-primary">
-                            <span className="text-accent-primary">M</span>atrix
-                        </h1>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-8">
-                        <Link href="/" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">About</Link>
-                        <Link href="/hub" className="text-accent-primary font-medium">Features</Link>
-                        <Link href="/dashboard" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">Dashboard</Link>
-                    </nav>
-
-                    <button className="btn-secondary hidden sm:block">Sign In</button>
-                </div>
-            </header>
+            <Navbar />
 
             <main className="max-w-6xl mx-auto px-6 py-20">
                 <div className="text-center mb-16 space-y-4">

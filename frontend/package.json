@@ -1,7 +1,7 @@
 {
-  "name": "cybermatrix-frontend",
+  "name": "matrix-frontend",
   "version": "1.0.0",
-  "description": "CyberMatrix - Agent-Driven Cyber Threat Simulator Dashboard",
+  "description": "Matrix - Agent-Driven Cyber Threat Simulator Dashboard",
   "private": true,
   "scripts": {
     "dev": "next dev",

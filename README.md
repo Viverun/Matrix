@@ -1,4 +1,4 @@
-# CyberMatrix - Agent-Driven Cyber Threat Simulator
+# Matrix - Agent-Driven Cyber Threat Simulator
 
 <div align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python" alt="Python">
@@ -9,7 +9,7 @@
 
 ## 🚀 Overview
 
-CyberMatrix is an AI-powered autonomous security testing platform that democratizes penetration testing. Using Google Gemini and intelligent agents, it automatically simulates cyber attacks, identifies vulnerabilities, and provides actionable remediation guidance.
+Matrix is an AI-powered autonomous security testing platform that democratizes penetration testing. Using Google Gemini and intelligent agents, it automatically simulates cyber attacks, identifies vulnerabilities, and provides actionable remediation guidance.
 
 ## ✨ Features
 
@@ -22,7 +22,7 @@ CyberMatrix is an AI-powered autonomous security testing platform that democrati
 ## 🏗️ Architecture
 
 ```
-CyberMatrix/
+Matrix/
 ├── backend/                 # FastAPI Python backend
 │   ├── agents/             # Security testing agents
 │   │   ├── orchestrator.py

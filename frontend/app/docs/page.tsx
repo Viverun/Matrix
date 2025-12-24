@@ -1,31 +1,18 @@
 'use client';
 
-import { Shield, ArrowLeft, Terminal, Cpu, Network, Zap, Lock, Code } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Terminal, Cpu, Network, Zap, Lock, Code } from 'lucide-react';
 import Link from 'next/link';
+import { SpiderWeb } from '../../components/SpiderWeb';
+
+import { Navbar } from '../../components/Navbar';
 
 export default function DocsPage() {
+    // Navbar visible/scroll logic moved to Navbar component
+
     return (
         <div className="min-h-screen bg-bg-primary">
-            {/* Navbar */}
-            <header className="glass-nav sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-primary to-accent-primary/80 flex items-center justify-center">
-                            <Shield className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-xl font-serif font-medium text-text-primary">
-                            <span className="text-accent-primary">M</span>atrix
-                        </h1>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-8">
-                        <Link href="/hub" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">Features</Link>
-                        <Link href="/docs" className="text-accent-primary font-medium">Documentation</Link>
-                    </nav>
-
-                    <Link href="/hub" className="btn-primary">Get Started</Link>
-                </div>
-            </header>
+            <Navbar />
 
             <main className="max-w-4xl mx-auto px-6 py-20">
                 <Link href="/hub" className="inline-flex items-center gap-2 text-text-muted hover:text-accent-primary transition-colors mb-8">

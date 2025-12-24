@@ -1,5 +1,5 @@
 /**
- * API client for CyberMatrix backend
+ * API client for Matrix backend
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -14,14 +14,14 @@ class ApiClient {
     setToken(token: string) {
         this.token = token;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('cybermatrix_token', token);
+            localStorage.setItem('matrix_token', token);
         }
     }
 
     getToken(): string | null {
         if (this.token) return this.token;
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('cybermatrix_token');
+            return localStorage.getItem('matrix_token');
         }
         return null;
     }
@@ -29,7 +29,7 @@ class ApiClient {
     clearToken() {
         this.token = null;
         if (typeof window !== 'undefined') {
-            localStorage.removeItem('cybermatrix_token');
+            localStorage.removeItem('matrix_token');
         }
     }
 

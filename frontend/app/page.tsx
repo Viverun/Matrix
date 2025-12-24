@@ -1,55 +1,20 @@
 'use client';
 
-import { Shield, ArrowRight, Zap, Lock, Search, Code } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowRight, Zap, Lock, Search, Code, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { MatrixRain } from '../components/MatrixRain';
+import { SpiderWeb } from '../components/SpiderWeb';
+import { useAuth } from '../context/AuthContext';
+
+import { Navbar } from '../components/Navbar';
 
 export default function Home() {
+    const { user, isAuthenticated, logout } = useAuth();
+
     return (
         <div className="min-h-screen">
-            {/* Navbar */}
-            <header className="glass-nav sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-primary to-accent-primary/80 flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow">
-                            <Shield className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-xl font-serif font-medium text-text-primary">
-                            <span className="text-accent-primary">M</span>atrix
-                        </h1>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-8">
-                        <Link href="/" className="text-accent-primary font-medium">
-                            About
-                        </Link>
-                        <Link href="/scan" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Scan
-                        </Link>
-                        <Link href="/hub" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Features
-                        </Link>
-                        <Link href="/repo" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Repository
-                        </Link>
-                        <Link href="/dashboard" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Dashboard
-                        </Link>
-                        <Link href="/docs" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Docs
-                        </Link>
-                    </nav>
-
-                    <div className="flex items-center gap-4">
-                        <button className="btn-secondary hidden sm:block">
-                            Sign In
-                        </button>
-                        <Link href="/hub" className="btn-primary">
-                            Get Started
-                        </Link>
-                    </div>
-                </div>
-            </header>
+            <Navbar />
 
             {/* Hero Section */}
             <section className="hero-gradient min-h-[90vh] flex items-center px-6 md:px-12 relative overflow-hidden">
@@ -63,13 +28,19 @@ export default function Home() {
                             actionable remediation guidance to neutralize threats before they can be exploited.
                         </p>
 
-                        <div className="pt-4">
+                        <div className="pt-4 flex flex-wrap items-center gap-6">
                             <Link
                                 href="/hub"
-                                className="btn-primary rounded-none inline-flex items-center gap-3 text-lg px-10 py-5 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                                className="btn-primary rounded-2xl inline-flex items-center gap-3 text-xl font-serif-display font-medium px-10 py-5 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
                             >
                                 Dive into Matrix
                                 <ArrowRight className="w-5 h-5" />
+                            </Link>
+                            <Link
+                                href={isAuthenticated ? "/dashboard" : "/login"}
+                                className="px-10 py-5 text-xl font-serif-display font-medium text-accent-primary bg-white/80 backdrop-blur-xl border-2 border-accent-primary/20 hover:border-accent-primary/40 transition-all duration-300 rounded-2xl shadow-[0_12px_40px_-12px_rgba(45,90,74,0.3)] hover:shadow-[0_20px_50px_-12px_rgba(45,90,74,0.4)] transform hover:-translate-y-1 inline-flex items-center justify-center"
+                            >
+                                {isAuthenticated ? "Dashboard" : "Sign In"}
                             </Link>
                         </div>
                     </div>
@@ -130,7 +101,7 @@ export default function Home() {
                                 description: 'Automatically crawls and analyzes your application to find hidden attack surfaces.'
                             },
                             {
-                                icon: Shield,
+                                icon: SpiderWeb,
                                 title: 'OWASP Coverage',
                                 description: 'Comprehensive testing against OWASP Top 10 vulnerabilities and beyond.'
                             },
@@ -167,14 +138,15 @@ export default function Home() {
                         <h3 className="text-2xl md:text-3xl font-serif font-medium text-text-primary mb-4">
                             Ready to Secure Your Application?
                         </h3>
-                        <p className="text-text-secondary mb-8 max-w-lg mx-auto">
-                            Start your first scan in seconds. No complex setup required.
+                        <p className="text-text-secondary mb-8 max-w-lg mx-auto leading-relaxed">
+                            Deploy autonomous intelligence mesh in minutes. Experience enterprise-grade
+                            vulnerability orchestration with zero infrastructure overhead.
                         </p>
                         <Link
                             href="/hub"
                             className="btn-primary inline-flex items-center gap-2"
                         >
-                            Dive into Matrix
+                            Start
                             <ArrowRight className="w-4 h-4" />
                         </Link>
                     </div>
@@ -185,11 +157,11 @@ export default function Home() {
             <footer className="border-t border-warm-200 py-8 px-6">
                 <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-accent-primary/10 flex items-center justify-center">
-                            <Shield className="w-4 h-4 text-accent-primary" />
+                        <div className="w-8 h-8 rounded-lg bg-accent-primary/5 flex items-center justify-center">
+                            <SpiderWeb className="w-5 h-5 text-accent-primary" />
                         </div>
                         <span className="text-text-muted font-serif">
-                            <span className="text-accent-primary">M</span>atrix © 2024
+                            <span className="text-accent-primary">M</span>atrix © 2025
                         </span>
                     </div>
                     <div className="flex items-center gap-6 text-sm text-text-muted">
