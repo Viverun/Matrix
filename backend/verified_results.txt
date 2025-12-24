@@ -1,0 +1,11 @@
+
+--- Checking matrix.db ---
+Top 2 latest vulnerabilities in matrix.db:
+
+[-] Missing Security Header: X-Content-Type-Options (LOW) | Detected At: 2025-12-24 16:49:20.473454
+    Likelihood: 0.0 | Impact: 0.0 | CWE: CWE-693
+    Rationale: 
+
+[-] Missing Rate Limiting on Authentication (MEDIUM) | Detected At: 2025-12-24 16:49:20.473454
+    Likelihood: 0.0 | Impact: 0.0 | CWE: CWE-307
+    Rationale: 

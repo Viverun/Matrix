@@ -163,7 +163,10 @@ async def _execute_orchestrator(db: AsyncSession, scan: Scan):
                 cwe_id=res.cwe_id,
                 response_snippet=res.response_snippet,
                 detected_by=res.agent_name,
-                reference_links=res.reference_links
+                reference_links=res.reference_links,
+                likelihood=res.likelihood,
+                impact=res.impact,
+                exploitability_rationale=res.exploitability_rationale
             )
             db.add(vuln)
         

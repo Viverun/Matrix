@@ -1,12 +1,15 @@
 """
 Authentication Security Agent - Tests authentication mechanisms.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import re
 from urllib.parse import urljoin
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from models.vulnerability import Severity, VulnerabilityType
+
+if TYPE_CHECKING:
+    from core.scan_context import ScanContext
 
 
 class AuthenticationAgent(BaseSecurityAgent):
@@ -73,7 +76,8 @@ class AuthenticationAgent(BaseSecurityAgent):
         self,
         target_url: str,
         endpoints: List[Dict[str, Any]],
-        technology_stack: List[str] = None
+        technology_stack: List[str] = None,
+        scan_context: Optional["ScanContext"] = None
     ) -> List[AgentResult]:
         """
         Scan for authentication vulnerabilities.
@@ -82,6 +86,7 @@ class AuthenticationAgent(BaseSecurityAgent):
             target_url: Base URL
             endpoints: Endpoints to test
             technology_stack: Detected technologies
+            scan_context: Shared scan context
             
         Returns:
             List of found vulnerabilities
@@ -91,11 +96,22 @@ class AuthenticationAgent(BaseSecurityAgent):
         # Find login endpoints
         login_endpoints = await self._find_login_pages(target_url, endpoints)
         
+        # Check if context has discovered credentials to try
+        credentials_to_test = list(self.DEFAULT_CREDENTIALS)
+        if scan_context and scan_context.discovered_credentials:
+            for cred in scan_context.discovered_credentials:
+                credentials_to_test.append((cred.username, cred.password))
+            print(f"[Auth Agent] Added {len(scan_context.discovered_credentials)} credentials from context")
+        
         for endpoint in login_endpoints:
             # Test for default credentials
             default_cred_result = await self._test_default_credentials(endpoint)
             if default_cred_result:
                 results.append(default_cred_result)
+                
+                # If successful login found, store in context
+                if scan_context and default_cred_result.is_vulnerable:
+                    scan_context.mark_authenticated()
             
             # Test for username enumeration
             enum_result = await self._test_username_enumeration(endpoint)

@@ -52,6 +52,8 @@ async def get_db():
 async def init_db():
     """Initialize database tables."""
     async with engine.begin() as conn:
+        # Debug: Print registered tables
+        print(f"[Database] Creating tables: {Base.metadata.tables.keys()}")
         await conn.run_sync(Base.metadata.create_all)
 
 

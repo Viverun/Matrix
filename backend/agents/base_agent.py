@@ -3,7 +3,7 @@ Base Security Agent - Abstract base class for all security testing agents.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from enum import Enum
 import httpx
 import asyncio
@@ -11,6 +11,9 @@ from datetime import datetime
 
 from core.groq_client import gemini_client
 from models.vulnerability import Severity, VulnerabilityType
+
+if TYPE_CHECKING:
+    from core.scan_context import ScanContext
 
 
 @dataclass
@@ -51,6 +54,11 @@ class AgentResult:
     # Metadata
     detected_at: datetime = field(default_factory=datetime.utcnow)
     cvss_score: Optional[float] = None
+    
+    # Risk Assessment
+    likelihood: float = 0.0
+    impact: float = 0.0
+    exploitability_rationale: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -72,6 +80,9 @@ class AgentResult:
             "cwe_id": self.cwe_id,
             "detected_at": self.detected_at.isoformat(),
             "cvss_score": self.cvss_score,
+            "likelihood": self.likelihood,
+            "impact": self.impact,
+            "exploitability_rationale": self.exploitability_rationale,
         }
 
 
@@ -102,7 +113,8 @@ class BaseSecurityAgent(ABC):
         self.http_client = httpx.AsyncClient(
             timeout=timeout,
             follow_redirects=True,
-            verify=False  # Allow self-signed certs for testing
+            verify=False,  # Allow self-signed certs for testing
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Matrix/1.0"}
         )
         self.gemini = gemini_client
     
@@ -115,7 +127,8 @@ class BaseSecurityAgent(ABC):
         self,
         target_url: str,
         endpoints: List[Dict[str, Any]],
-        technology_stack: List[str] = None
+        technology_stack: List[str] = None,
+        scan_context: Optional["ScanContext"] = None
     ) -> List[AgentResult]:
         """
         Perform security scan on target.
@@ -124,11 +137,42 @@ class BaseSecurityAgent(ABC):
             target_url: Base URL of the target application
             endpoints: List of discovered endpoints to test
             technology_stack: Detected technology stack
+            scan_context: Shared context for inter-agent communication
             
         Returns:
             List of AgentResult objects for any vulnerabilities found
         """
         pass
+    
+    def _read_context(self, scan_context: Optional["ScanContext"], key: str) -> Any:
+        """
+        Helper to read from scan context safely.
+        
+        Args:
+            scan_context: Scan context object
+            key: Attribute to read
+            
+        Returns:
+            Value from context or None
+        """
+        if scan_context is None:
+            return None
+        return getattr(scan_context, key, None)
+    
+    def _write_context(self, scan_context: Optional["ScanContext"], **kwargs):
+        """
+        Helper to write to scan context safely.
+        
+        Args:
+            scan_context: Scan context object
+            **kwargs: Attributes to set
+        """
+        if scan_context is None:
+            return
+        
+        for key, value in kwargs.items():
+            if hasattr(scan_context, key):
+                setattr(scan_context, key, value)
     
     async def make_request(
         self,
@@ -243,6 +287,9 @@ class BaseSecurityAgent(ABC):
         url: str,
         title: str,
         description: str,
+        likelihood: float = 0.0,
+        impact: float = 0.0,
+        exploitability_rationale: str = "",
         **kwargs
     ) -> AgentResult:
         """
@@ -256,6 +303,9 @@ class BaseSecurityAgent(ABC):
             url: Affected URL
             title: Vulnerability title
             description: Detailed description
+            likelihood: Likelihood score (0-10)
+            impact: Impact score (0-10)
+            exploitability_rationale: Explanation of exploitability
             **kwargs: Additional fields
             
         Returns:
@@ -271,5 +321,34 @@ class BaseSecurityAgent(ABC):
             title=title,
             description=description,
             cvss_score=self.calculate_cvss_score(severity),
+            likelihood=likelihood,
+            impact=impact,
+            exploitability_rationale=exploitability_rationale,
+            **kwargs
+        )
+
+    def create_result_from_ai(
+        self,
+        ai_analysis: Dict[str, Any],
+        vulnerability_type: VulnerabilityType,
+        url: str,
+        title: str,
+        description: str,
+        severity: Severity,
+        **kwargs
+    ) -> AgentResult:
+        """Helper to create result from AI analysis dict."""
+        return self.create_result(
+            vulnerability_type=vulnerability_type,
+            is_vulnerable=ai_analysis.get("is_vulnerable", True),
+            severity=severity,
+            confidence=ai_analysis.get("confidence", 85),
+            url=url,
+            title=title,
+            description=description,
+            ai_analysis=ai_analysis.get("reason", ""),
+            likelihood=ai_analysis.get("likelihood", 0.0),
+            impact=ai_analysis.get("impact", 0.0),
+            exploitability_rationale=ai_analysis.get("exploitability_rationale", ""),
             **kwargs
         )

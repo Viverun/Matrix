@@ -1,7 +1,7 @@
 """
 API Security Agent - Tests REST API security.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import re
 import json
 from urllib.parse import urljoin
@@ -64,20 +64,20 @@ class APISecurityAgent(BaseSecurityAgent):
     ]
     
     # Security headers to check
+    # Removed X-XSS-Protection (deprecated) and ACAO (has dedicated test)
     SECURITY_HEADERS = [
         "X-Content-Type-Options",
         "X-Frame-Options",
         "Content-Security-Policy",
         "Strict-Transport-Security",
-        "X-XSS-Protection",
-        "Access-Control-Allow-Origin",
     ]
     
     async def scan(
         self,
         target_url: str,
         endpoints: List[Dict[str, Any]],
-        technology_stack: List[str] = None
+        technology_stack: List[str] = None,
+        scan_context: Optional[Any] = None
     ) -> List[AgentResult]:
         """
         Scan for API security vulnerabilities.
@@ -139,8 +139,15 @@ class APISecurityAgent(BaseSecurityAgent):
         """
         endpoints = []
         
+        if not target_url.startswith(("http://", "https://")):
+            target_url = f"http://{target_url}"
+        
+        base_url = target_url if target_url.endswith("/") else f"{target_url}/"
+        
         for path in self.API_PATHS:
-            url = urljoin(target_url, path)
+            # Remove leading slash if present to avoid absolute path joining
+            clean_path = path.lstrip("/")
+            url = urljoin(base_url, clean_path)
             
             try:
                 response = await self.make_request(url)
@@ -285,17 +292,142 @@ class APISecurityAgent(BaseSecurityAgent):
         
         return None
     
+    def _validate_header_value(
+        self, 
+        header: str, 
+        value: str, 
+        url: str
+    ) -> tuple[bool, AgentResult | None]:
+        """
+        Validate that a security header is correctly configured.
+        
+        Args:
+            header: Header name
+            value: Header value
+            url: URL being checked
+            
+        Returns:
+            Tuple of (is_valid, issue_if_any)
+        """
+        header_lower = header.lower()
+        value_lower = value.lower()
+        
+        # X-Content-Type-Options validation
+        if header_lower == "x-content-type-options":
+            if value_lower != "nosniff":
+                return False, self.create_result(
+                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                    is_vulnerable=True,
+                    severity=Severity.INFO,
+                    confidence=100,
+                    url=url,
+                    title="X-Content-Type-Options Misconfigured",
+                    description=f"Header value '{value}' is not the recommended 'nosniff'.",
+                    evidence=f"X-Content-Type-Options: {value}",
+                    likelihood=1.0,
+                    impact=1.0,
+                    exploitability_rationale="Minor misconfiguration. The header is present but not optimally configured.",
+                    remediation="Set X-Content-Type-Options to 'nosniff'.",
+                    owasp_category="A05:2021 – Security Misconfiguration",
+                    cwe_id="CWE-693"
+                )
+            return True, None
+        
+        # X-Frame-Options validation
+        if header_lower == "x-frame-options":
+            valid_values = ["deny", "sameorigin"]
+            if value_lower not in valid_values:
+                return False, self.create_result(
+                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                    is_vulnerable=True,
+                    severity=Severity.LOW,
+                    confidence=90,
+                    url=url,
+                    title="X-Frame-Options Misconfigured",
+                    description=f"Header value '{value}' may allow unintended framing. Recommended values are 'DENY' or 'SAMEORIGIN'.",
+                    evidence=f"X-Frame-Options: {value}",
+                    likelihood=2.0,
+                    impact=3.0,
+                    exploitability_rationale="Potential clickjacking vector if value allows framing from untrusted origins. Still requires social engineering for exploitation.",
+                    remediation="Set X-Frame-Options to 'DENY' (most restrictive) or 'SAMEORIGIN'.",
+                    owasp_category="A05:2021 – Security Misconfiguration",
+                    cwe_id="CWE-1021"
+                )
+            return True, None
+        
+        # HSTS validation
+        if header_lower == "strict-transport-security":
+            # Check for reasonable max-age (at least 6 months = 15768000 seconds)
+            import re
+            max_age_match = re.search(r'max-age=(\d+)', value_lower)
+            if max_age_match:
+                max_age = int(max_age_match.group(1))
+                if max_age < 15768000:  # Less than 6 months
+                    return False, self.create_result(
+                        vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                        is_vulnerable=True,
+                        severity=Severity.INFO,
+                        confidence=85,
+                        url=url,
+                        title="HSTS max-age Too Short",
+                        description=f"HSTS max-age of {max_age} seconds ({max_age // 86400} days) is below the recommended minimum of 6 months.",
+                        evidence=f"Strict-Transport-Security: {value}",
+                        likelihood=1.0,
+                        impact=2.0,
+                        exploitability_rationale="Short HSTS duration increases window for SSL stripping attacks after cache expiry. Not directly exploitable.",
+                        remediation="Set max-age to at least 31536000 (1 year). Consider adding 'includeSubDomains' if all subdomains support HTTPS.",
+                        owasp_category="A05:2021 – Security Misconfiguration",
+                        cwe_id="CWE-319"
+                    )
+            return True, None
+        
+        # CSP validation - check for overly permissive directives
+        if header_lower == "content-security-policy":
+            issues = []
+            if "'unsafe-inline'" in value_lower and "script-src" in value_lower:
+                issues.append("script-src allows 'unsafe-inline'")
+            if "'unsafe-eval'" in value_lower:
+                issues.append("allows 'unsafe-eval'")
+            if "default-src *" in value_lower or "default-src '*'" in value_lower:
+                issues.append("default-src allows all sources (*)")
+            
+            if issues:
+                return False, self.create_result(
+                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                    is_vulnerable=True,
+                    severity=Severity.LOW,
+                    confidence=90,
+                    url=url,
+                    title="Content-Security-Policy Too Permissive",
+                    description=f"CSP contains permissive directives that reduce its effectiveness: {', '.join(issues)}.",
+                    evidence=f"Content-Security-Policy: {value[:200]}...",
+                    likelihood=3.0,
+                    impact=3.0,
+                    exploitability_rationale="Permissive CSP reduces defense-in-depth against XSS. Still requires an XSS vulnerability to exploit.",
+                    remediation="Remove 'unsafe-inline' and 'unsafe-eval'. Use nonces or hashes for inline scripts. Restrict default-src.",
+                    owasp_category="A05:2021 – Security Misconfiguration",
+                    cwe_id="CWE-693"
+                )
+            return True, None
+        
+        # Default: header present, assume valid
+        return True, None
+
     async def _check_security_headers(self, url: str) -> List[AgentResult]:
         """
-        Check for missing security headers.
+        Check for missing or misconfigured security headers.
+        
+        Acknowledges correctly configured headers and only flags issues
+        with appropriate severity based on risk amplification potential.
         
         Args:
             url: URL to check
             
         Returns:
-            List of security header issues
+            List of security header issues (Low/Informational unless chained)
         """
         results = []
+        present_headers = []
         
         try:
             response = await self.make_request(url)
@@ -303,26 +435,74 @@ class APISecurityAgent(BaseSecurityAgent):
                 return results
             
             headers = response.headers
-            missing_headers = []
+            headers_lower = {h.lower(): v for h, v in headers.items()}
             
+            # Track which headers are present and correctly configured
             for header in self.SECURITY_HEADERS:
-                if header.lower() not in [h.lower() for h in headers.keys()]:
-                    missing_headers.append(header)
+                header_lower = header.lower()
+                
+                if header_lower in headers_lower:
+                    # Header is present - validate configuration
+                    value = headers_lower[header_lower]
+                    is_valid, issue = self._validate_header_value(header, value, url)
+                    
+                    if is_valid:
+                        present_headers.append(header)
+                    elif issue:
+                        results.append(issue)
+                else:
+                    # Header is missing
+                    # Specific logic for HSTS: only flag on HTTPS
+                    if header == "Strict-Transport-Security" and not url.startswith("https"):
+                        continue  # Not applicable on HTTP - this is correct behavior
+                        
+                    # Default risk values - Low/Informational for standalone missing headers
+                    severity = Severity.LOW
+                    likelihood = 2.0  # Low - requires chaining for exploitation
+                    impact = 2.0
+                    cwe_id = "CWE-693"
+                    title = f"Missing Security Header: {header}"
+                    rationale = (
+                        "This missing header increases attack surface but is NOT directly exploitable alone. "
+                        "Risk is conditional: exploitation requires chaining with another vulnerability "
+                        "(e.g., missing CSP is only critical when combined with XSS)."
+                    )
+                    
+                    if header == "X-Frame-Options":
+                        cwe_id = "CWE-1021"
+                        rationale = (
+                            "Missing X-Frame-Options allows embedding in iframes, enabling potential clickjacking. "
+                            "However, exploitation requires a targeted social engineering attack and user interaction. "
+                            "Not directly exploitable without additional attack vectors."
+                        )
+                    elif header == "Content-Security-Policy":
+                        impact = 3.0  # Slightly higher as it's a key defense-in-depth control
+                        rationale = (
+                            "Missing CSP removes a defense-in-depth layer against XSS. "
+                            "This amplifies risk IF an XSS vulnerability exists, but is not exploitable alone. "
+                            "Severity escalates only when correlated with confirmed XSS findings."
+                        )
+                        
+                    results.append(self.create_result(
+                        vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                        is_vulnerable=True,
+                        severity=severity,
+                        confidence=95,
+                        url=url,
+                        title=title,
+                        description=f"The {header} header is not present. This is a defense-in-depth control that reduces attack surface when properly configured.",
+                        evidence=f"Header '{header}' not found in response headers",
+                        likelihood=likelihood,
+                        impact=impact,
+                        exploitability_rationale=rationale,
+                        remediation=f"Configure the web server or application to include the '{header}' header in all responses.",
+                        owasp_category="A05:2021 – Security Misconfiguration",
+                        cwe_id=cwe_id
+                    ))
             
-            if missing_headers:
-                results.append(self.create_result(
-                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
-                    is_vulnerable=True,
-                    severity=Severity.LOW,
-                    confidence=95,
-                    url=url,
-                    title="Missing Security Headers",
-                    description=f"The application is missing important security headers: {', '.join(missing_headers)}",
-                    evidence=f"Missing headers: {missing_headers}",
-                    remediation="Add security headers: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Content-Security-Policy, Strict-Transport-Security (for HTTPS)",
-                    owasp_category="A05:2021 – Security Misconfiguration",
-                    cwe_id="CWE-693"
-                ))
+            # Acknowledge correctly configured headers (for logging/reporting)
+            if present_headers:
+                print(f"[API Agent] ✓ Security headers correctly configured: {', '.join(present_headers)}")
             
         except Exception as e:
             print(f"[API Agent] Header check error: {e}")
@@ -422,15 +602,18 @@ class APISecurityAgent(BaseSecurityAgent):
                     severity=Severity.HIGH,
                     confidence=95,
                     url=url,
-                    title="Insecure CORS Configuration",
+                    title="Insecure CORS Configuration (Reflected Origin)",
                     description="The server reflects arbitrary origins in Access-Control-Allow-Origin header while allowing credentials. This allows any website to make authenticated requests to the API.",
                     evidence=f"ACAO: {acao}, ACAC: {acac}",
+                    likelihood=8.0,
+                    impact=8.0,
+                    exploitability_rationale="This configuration allows any malicious site to perform authenticated actions on behalf of a victim if they are logged into the target API. It is a direct path to cross-site request forgery and data theft.",
                     remediation="Do not reflect arbitrary origins. Whitelist only trusted origins. Never use 'Allow-Credentials: true' with 'Allow-Origin: *'.",
                     owasp_category="A05:2021 – Security Misconfiguration",
                     cwe_id="CWE-942"
                 )
             
-            # Dangerous: wildcard origin
+            # Dangerous: wildcard origin with credentials (though many browsers block this combination)
             if acao == "*" and acac.lower() == "true":
                 return self.create_result(
                     vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
@@ -438,10 +621,51 @@ class APISecurityAgent(BaseSecurityAgent):
                     severity=Severity.MEDIUM,
                     confidence=90,
                     url=url,
-                    title="Overly Permissive CORS Policy",
-                    description="The server uses wildcard (*) for Access-Control-Allow-Origin, allowing any website to access the API.",
-                    evidence=f"ACAO: {acao}",
-                    remediation="Specify explicit allowed origins instead of using wildcards.",
+                    title="Overly Permissive CORS Policy (Wildcard + Credentials)",
+                    description="The server uses wildcard (*) for Access-Control-Allow-Origin while allowing credentials, which is highly insecure and often disallowed by modern browsers.",
+                    evidence=f"ACAO: {acao}, ACAC: {acac}",
+                    likelihood=4.0,
+                    impact=7.0,
+                    exploitability_rationale="While modern browsers prevent carrying credentials with a wildcard ACAO, this configuration indicates a lack of CORS understanding and may be exploitable in older clients or if the server logic has other flaws.",
+                    remediation="Specify explicit allowed origins instead of using wildcards when credentials are required.",
+                    owasp_category="A05:2021 – Security Misconfiguration",
+                    cwe_id="CWE-942"
+                )
+            
+            # Informational: Wildcard without credentials (common and typically acceptable)
+            if acao == "*" and acac.lower() != "true":
+                return self.create_result(
+                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                    is_vulnerable=True,
+                    severity=Severity.INFO,
+                    confidence=100,
+                    url=url,
+                    title="Permissive CORS Policy (Wildcard Origin)",
+                    description="The server uses a wildcard (*) for Access-Control-Allow-Origin. This is acceptable for public APIs but should be reviewed if the endpoint handles sensitive data.",
+                    evidence=f"ACAO: {acao}, ACAC: {acac or 'not set'}",
+                    likelihood=1.0,
+                    impact=2.0,
+                    exploitability_rationale="Not directly exploitable. Wildcard CORS without credentials is a design choice suitable for public resources. Only a concern if sensitive, user-specific data is exposed.",
+                    remediation="Verify this endpoint does not return sensitive user-specific data. If it does, implement an origin whitelist.",
+                    owasp_category="A05:2021 – Security Misconfiguration",
+                    cwe_id="CWE-942"
+                )
+            
+            # Informational: Origin reflected but no credentials (lower risk)
+            if acao == "https://evil.example.com" and acac.lower() != "true":
+                return self.create_result(
+                    vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                    is_vulnerable=True,
+                    severity=Severity.LOW,
+                    confidence=85,
+                    url=url,
+                    title="CORS Origin Reflection Without Credentials",
+                    description="The server reflects arbitrary origins in the Access-Control-Allow-Origin header but does not allow credentials. This is lower risk but indicates potential misconfiguration.",
+                    evidence=f"ACAO: {acao}, ACAC: {acac or 'not set'}",
+                    likelihood=3.0,
+                    impact=3.0,
+                    exploitability_rationale="Low exploitability. Without credentials, cross-origin requests cannot access authenticated user data. However, any publicly accessible data can be read by any website.",
+                    remediation="Implement an origin whitelist instead of reflecting arbitrary origins. Ensure no sensitive data is accessible without authentication.",
                     owasp_category="A05:2021 – Security Misconfiguration",
                     cwe_id="CWE-942"
                 )

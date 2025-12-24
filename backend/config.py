@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     openrouter_api_key: str = ""
     
+    # LLM Cost Optimization
+    enable_llm_cache: bool = True
+    llm_cache_ttl_hours: int = 24
+    openrouter_rpm_limit: int = 10  # Requests per minute
+    groq_rpm_limit: int = 30  # Requests per minute
+    
+    # Database
     # Database
     database_url: str = "sqlite+aiosqlite:///./matrix.db"
     

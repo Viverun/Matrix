@@ -33,22 +33,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
+    const [mounted, setMounted] = useState(false);
+
     useEffect(() => {
+        setMounted(true);
         // Check for stored token on mount
         const storedToken = localStorage.getItem('matrix_token');
         const storedUser = localStorage.getItem('matrix_user');
 
+        console.log('[Auth] Initializing...', { hasToken: !!storedToken, hasUser: !!storedUser });
+
         if (storedToken && storedUser) {
-            setToken(storedToken);
             try {
-                setUser(JSON.parse(storedUser));
+                const parsedUser = JSON.parse(storedUser);
+                setToken(storedToken);
+                setUser(parsedUser);
+                console.log('[Auth] Session restored', parsedUser.username);
             } catch (e) {
-                console.error('Failed to parse stored user', e);
+                console.error('[Auth] Failed to parse stored user', e);
                 localStorage.removeItem('matrix_token');
                 localStorage.removeItem('matrix_user');
             }
         }
-        setIsLoading(false);
+
+        // Safety timeout to ensure loading screen doesn't hang indefinitely
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+            console.log('[Auth] Loading complete');
+        }, 100);
+
+        return () => clearTimeout(timer);
     }, []);
 
     const login = async (email: string, password: string) => {

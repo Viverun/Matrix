@@ -4,12 +4,15 @@ GitHub Security Agent - Analyzes repository source code for vulnerabilities.
 import re
 import httpx
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from models.vulnerability import Severity, VulnerabilityType
 from core.openrouter_client import openrouter_client
+
+if TYPE_CHECKING:
+    from core.scan_context import ScanContext
 
 class GithubSecurityAgent(BaseSecurityAgent):
     """
@@ -55,7 +58,8 @@ class GithubSecurityAgent(BaseSecurityAgent):
         self,
         target_url: str,
         endpoints: List[Dict[str, Any]] = None,
-        technology_stack: List[str] = None
+        technology_stack: List[str] = None,
+        scan_context: Optional["ScanContext"] = None
     ) -> List[AgentResult]:
         """
         Scan a GitHub repository.

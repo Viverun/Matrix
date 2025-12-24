@@ -26,6 +26,9 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
                     <div className="absolute inset-0 border-2 border-accent-primary/20 rounded-2xl animate-ping" />
                 </div>
                 <p className="text-text-secondary font-serif italic animate-pulse">Synchronizing Identity...</p>
+                <div className="text-[10px] text-text-muted mt-4 opacity-30 select-none">
+                    Connection: Secured • Auth Status: Pending
+                </div>
             </div>
         );
     }

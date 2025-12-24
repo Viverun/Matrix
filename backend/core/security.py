@@ -43,6 +43,11 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         return payload
+    except jwt.ExpiredSignatureError:
+        print(f"[SECURITY DEBUG] Token expired")
+        return None
     except JWTError as e:
         print(f"[SECURITY DEBUG] JWT Decode Error: {e}")
+        print(f"[SECURITY DEBUG] Token (first 50 chars): {token[:50]}...")
+        print(f"[SECURITY DEBUG] Using secret: {settings.secret_key[:10]}...")
         return None
