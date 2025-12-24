@@ -18,13 +18,14 @@ class GroqClient:
         """Initialize the Groq client."""
         # Check config or env var
         api_key = settings.groq_api_key or os.getenv("GROQ_API_KEY")
-        print(f"[GROQ INIT] Key found: {'Yes' if api_key else 'No'} (Length: {len(api_key) if api_key else 0})")
         
         if api_key:
             self.client = Groq(api_key=api_key)
             self.model_name = "llama-3.3-70b-versatile" # Updated to supported model
+            print("[GROQ INIT] Groq client initialized successfully", flush=True)
         else:
             self.client = None
+            print("[GROQ WARNING] GROQ_API_KEY not found in environment", flush=True)
     
     @property
     def is_configured(self) -> bool:

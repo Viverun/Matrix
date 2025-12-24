@@ -41,9 +41,9 @@ export default function DashboardPage() {
                     </div>
 
                     <nav className="flex items-center gap-6">
+                        <Link href="/" className="text-gray-300 hover:text-cyber-accent transition-colors">Home</Link>
+                        <Link href="/hub" className="text-gray-300 hover:text-cyber-accent transition-colors">Features</Link>
                         <Link href="/dashboard" className="text-cyber-accent font-medium">Dashboard</Link>
-                        <Link href="/scans" className="text-gray-300 hover:text-cyber-accent transition-colors">Scans</Link>
-                        <Link href="/reports" className="text-gray-300 hover:text-cyber-accent transition-colors">Reports</Link>
                         <div className="w-8 h-8 bg-cyber-accent/20 rounded-full flex items-center justify-center">
                             <span className="text-cyber-accent text-sm font-bold">U</span>
                         </div>
@@ -125,7 +125,7 @@ export default function DashboardPage() {
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className={`w-3 h-3 rounded-full ${scan.status === 'running' ? 'bg-cyber-accent animate-pulse' :
-                                                scan.status === 'completed' ? 'bg-green-500' : 'bg-gray-500'
+                                            scan.status === 'completed' ? 'bg-green-500' : 'bg-gray-500'
                                             }`} />
                                         <div>
                                             <div className="font-medium text-white">{scan.target}</div>
