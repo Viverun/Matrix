@@ -108,7 +108,14 @@ async def _apply_cached_results(db: AsyncSession, current_scan: Scan, cached_sca
             response_snippet=vuln.response_snippet,
             detected_by=vuln.detected_by,
             reference_links=vuln.reference_links,
-            is_false_positive=False
+            is_false_positive=vuln.is_false_positive,
+            is_suppressed=vuln.is_suppressed,
+            suppression_reason=vuln.suppression_reason,
+            final_verdict=vuln.final_verdict,
+            action_required=vuln.action_required,
+            detection_confidence=vuln.detection_confidence,
+            exploit_confidence=vuln.exploit_confidence,
+            scope_impact=vuln.scope_impact
         )
         db.add(new_vuln)
     
@@ -172,7 +179,15 @@ async def _execute_orchestrator(db: AsyncSession, scan: Scan):
                 reference_links=res.reference_links,
                 likelihood=res.likelihood,
                 impact=res.impact,
-                exploitability_rationale=res.exploitability_rationale
+                exploitability_rationale=res.exploitability_rationale,
+                is_suppressed=res.is_suppressed,
+                is_false_positive=res.is_false_positive,
+                suppression_reason=res.suppression_reason,
+                final_verdict=res.final_verdict,
+                action_required=res.action_required,
+                detection_confidence=res.detection_confidence,
+                exploit_confidence=res.exploit_confidence,
+                scope_impact=res.scope_impact
             )
             db.add(vuln)
         
