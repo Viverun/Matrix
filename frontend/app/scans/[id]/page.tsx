@@ -166,6 +166,23 @@ export default function ScanDetailPage() {
                                 findings.map((vuln) => (
                                     <div key={vuln.id} className="glass-card overflow-hidden group hover:border-accent-primary/20 transition-all duration-500">
                                         <div className="p-6 md:p-8">
+                                            {/* Finding ID Header */}
+                                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-warm-100">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-mono font-bold text-accent-primary bg-accent-primary/10 px-2 py-1 rounded">
+                                                        MTX-{String(scan.id).padStart(3, '0')}-{String(vuln.id).padStart(4, '0')}
+                                                    </span>
+                                                    {vuln.detected_by && (
+                                                        <span className="text-[10px] text-text-muted font-medium">
+                                                            via {vuln.detected_by.replace(/_/g, ' ')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-[10px] text-text-muted font-mono">
+                                                    {new Date(vuln.detected_at).toLocaleString()}
+                                                </div>
+                                            </div>
+                                            
                                             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-6">
                                                 <div className="flex gap-5">
                                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${vuln.severity === 'critical' ? 'bg-red-500/10 text-red-600' :
@@ -190,7 +207,17 @@ export default function ScanDetailPage() {
                                                     <span className={`severity-tag severity-${vuln.severity} px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest shadow-sm`}>
                                                         {vuln.severity}
                                                     </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-text-muted bg-warm-100 px-2 py-0.5 rounded">
+                                                            {vuln.ai_confidence}% conf
+                                                        </span>
+                                                    </div>
                                                     {vuln.cwe_id && <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">{vuln.cwe_id}</span>}
+                                                    {vuln.owasp_category && (
+                                                        <span className="text-[10px] text-text-muted font-medium">
+                                                            {vuln.owasp_category.split(' – ')[0]}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -211,7 +238,7 @@ export default function ScanDetailPage() {
                                                         AI Auditor Analysis
                                                     </div>
                                                     <div className="text-sm text-text-secondary leading-relaxed h-[120px] overflow-y-auto pr-2">
-                                                        {vuln.ai_analysis || `Our autonomous agents detected a potential ${vuln.vulnerability_type} anomaly in the targeted endpoint. This indicates a high probability of structural exploitation.`}
+                                                        {vuln.ai_analysis || `Analysis pending. The ${vuln.vulnerability_type.replace(/_/g, ' ')} finding at this endpoint requires manual verification to confirm exploitability.`}
                                                     </div>
                                                 </div>
                                             </div>
@@ -223,7 +250,7 @@ export default function ScanDetailPage() {
                                                     Remediation Roadmap
                                                 </div>
                                                 <p className="text-sm text-text-secondary mb-4 leading-relaxed">
-                                                    {vuln.remediation || 'Standard security protocols suggest implementing rigorous server-side validation and sanitization for all input vectors.'}
+                                                    {vuln.remediation || 'Implement input validation and output encoding. Review the specific vulnerability type documentation for detailed remediation guidance.'}
                                                 </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {vuln.reference_links.map((link, j) => (
@@ -293,10 +320,10 @@ export default function ScanDetailPage() {
                                 </h3>
                                 <div className="space-y-4">
                                     {[
-                                        { label: 'Critical', color: 'bg-red-500', desc: 'Direct exploitable path leading to full compromise.' },
-                                        { label: 'High', color: 'bg-orange-500', desc: 'Significant risk with probable impact on data privacy.' },
-                                        { label: 'Medium', color: 'bg-amber-500', desc: 'Non-standard configurations or information leaks.' },
-                                        { label: 'Low', color: 'bg-blue-500', desc: 'Informational disclosures or hardening suggestions.' },
+                                        { label: 'Critical', color: 'bg-red-500', desc: 'Proven exploitable with verified attack chain. Immediate action required.' },
+                                        { label: 'High', color: 'bg-orange-500', desc: 'Directly exploitable with significant security impact.' },
+                                        { label: 'Medium', color: 'bg-amber-500', desc: 'Exploitable under specific conditions or with chained attacks.' },
+                                        { label: 'Low', color: 'bg-blue-500', desc: 'Security weakness requiring additional factors to exploit.' },
                                     ].map((item, i) => (
                                         <div key={i} className="flex gap-4">
                                             <div className={`w-3 h-3 rounded-full ${item.color} mt-1 flex-shrink-0`} />

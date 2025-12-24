@@ -1,0 +1,183 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-24T18:10:33.651542",
+    "generator": "Matrix Security Scanner v2.0",
+    "format_version": "1.0",
+    "scan_id": "scan_20241224_103045",
+    "target": "http://example.com",
+    "scan_duration": "5m 32s",
+    "agents_used": [
+      "github_security",
+      "sql_injection",
+      "xss",
+      "csrf",
+      "auth",
+      "api_security"
+    ]
+  },
+  "executive_summary": {
+    "summary_text": "The security scan identified 3 vulnerabilities, including 1 CRITICAL and 1 HIGH severity findings that require immediate attention.",
+    "risk_level": "Critical",
+    "critical_count": 1,
+    "high_count": 1
+  },
+  "findings": [
+    {
+      "id": "VULN--6592831270451425334",
+      "title": "SQL Injection in 'id' parameter",
+      "description": "An error-based SQL injection vulnerability allows attackers to execute arbitrary SQL queries.",
+      "severity": "critical",
+      "confidence": 95.0,
+      "vulnerability_type": "sql_injection",
+      "risk_score": {
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "cvss_base_score": 9.8,
+        "cvss_rating": "Critical",
+        "likelihood": 9.0,
+        "impact": 10.0,
+        "exploitability": "Directly exploitable. Can extract entire database contents."
+      },
+      "location": {
+        "url": "http://example.com/api/users",
+        "parameter": "id",
+        "method": "GET"
+      },
+      "evidence": {
+        "description": "MySQL error: 'You have an error in your SQL syntax near '1'='1''",
+        "proof_of_concept": {
+          "payload": "",
+          "request": {
+            "params": {
+              "id": "' OR '1'='1"
+            }
+          },
+          "response_snippet": "MySQL error: 'You have an error in your SQL syntax...'"
+        },
+        "ai_analysis": "High confidence SQL injection confirmed via error messages and boolean-based testing.",
+        "detected_by": "sql_injection",
+        "detected_at": "2025-12-24T18:10:33.651542"
+      },
+      "remediation": {
+        "summary": "Use parameterized queries (prepared statements) instead of string concatenation.",
+        "code_example": "\n# Vulnerable code:\nquery = f\"SELECT * FROM users WHERE id = '{user_id}'\"\n\n# Secure code:\nquery = \"SELECT * FROM users WHERE id = ?\"\ncursor.execute(query, (user_id,))\n",
+        "references": [
+          "https://owasp.org/Top10/A03_2021-Injection/",
+          "https://portswigger.net/web-security/sql-injection"
+        ]
+      },
+      "standards": {
+        "owasp": "A03:2021 \u2013 Injection",
+        "cwe": "CWE-89"
+      }
+    },
+    {
+      "id": "VULN-71198835526951180",
+      "title": "Reflected XSS in search parameter",
+      "description": "User input is reflected in HTML without proper encoding, allowing script injection.",
+      "severity": "high",
+      "confidence": 88.0,
+      "vulnerability_type": "xss_reflected",
+      "risk_score": {
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+        "cvss_base_score": 5.3,
+        "cvss_rating": "Medium",
+        "likelihood": 7.0,
+        "impact": 7.0,
+        "exploitability": "Requires user interaction but easily exploitable via phishing."
+      },
+      "location": {
+        "url": "http://example.com/search",
+        "parameter": "q",
+        "method": "GET"
+      },
+      "evidence": {
+        "description": "Payload <script>alert('XSS')</script> was reflected unencoded in response.",
+        "proof_of_concept": {
+          "payload": "",
+          "request": {
+            "params": {
+              "q": "<script>alert('XSS')</script>"
+            }
+          },
+          "response_snippet": "<div class='results'>Search results for: <script>alert('XSS')</script></div>"
+        },
+        "ai_analysis": "Confirmed reflected XSS via payload reflection analysis.",
+        "detected_by": "xss",
+        "detected_at": "2025-12-24T18:10:33.651542"
+      },
+      "remediation": {
+        "summary": "HTML-encode all user input before rendering in web pages. Use Content-Security-Policy header.",
+        "code_example": null,
+        "references": [
+          "https://owasp.org/Top10/A03_2021-Injection/"
+        ]
+      },
+      "standards": {
+        "owasp": "A03:2021 \u2013 Injection",
+        "cwe": "CWE-79"
+      }
+    },
+    {
+      "id": "VULN--3154575962757858165",
+      "title": "Missing CSRF protection on profile update",
+      "description": "State-changing operation lacks CSRF tokens, allowing cross-site request forgery.",
+      "severity": "medium",
+      "confidence": 85.0,
+      "vulnerability_type": "csrf",
+      "risk_score": {
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:H/A:N",
+        "cvss_base_score": 7.1,
+        "cvss_rating": "High",
+        "likelihood": 6.0,
+        "impact": 7.0,
+        "exploitability": "Requires social engineering but no authentication bypass needed."
+      },
+      "location": {
+        "url": "http://example.com/api/profile/update",
+        "parameter": null,
+        "method": "POST"
+      },
+      "evidence": {
+        "description": "POST request succeeded without CSRF token or SameSite cookie attribute.",
+        "proof_of_concept": {
+          "payload": "",
+          "request": {
+            "data": {
+              "email": "attacker@example.com"
+            }
+          },
+          "response_snippet": ""
+        },
+        "ai_analysis": "No CSRF tokens found in request or response. Cookies lack SameSite attribute.",
+        "detected_by": "csrf",
+        "detected_at": "2025-12-24T18:10:33.651542"
+      },
+      "remediation": {
+        "summary": "Implement synchronizer tokens pattern. Set SameSite=Strict on session cookies.",
+        "code_example": null,
+        "references": [
+          "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+        ]
+      },
+      "standards": {
+        "owasp": "A01:2021 \u2013 Broken Access Control",
+        "cwe": "CWE-352"
+      }
+    }
+  ],
+  "statistics": {
+    "total_findings": 3,
+    "by_severity": {
+      "critical": 1,
+      "high": 1,
+      "medium": 1
+    },
+    "by_type": {
+      "sql_injection": 1,
+      "xss_reflected": 1,
+      "csrf": 1
+    },
+    "average_confidence": 89.33333333333333,
+    "high_confidence_findings": 3
+  }
+}

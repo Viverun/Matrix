@@ -37,32 +37,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         setMounted(true);
+        
         // Check for stored token on mount
-        const storedToken = localStorage.getItem('matrix_token');
-        const storedUser = localStorage.getItem('matrix_user');
+        try {
+            const storedToken = localStorage.getItem('matrix_token');
+            const storedUser = localStorage.getItem('matrix_user');
 
-        console.log('[Auth] Initializing...', { hasToken: !!storedToken, hasUser: !!storedUser });
+            console.log('[Auth] Initializing...', { hasToken: !!storedToken, hasUser: !!storedUser });
 
-        if (storedToken && storedUser) {
-            try {
+            if (storedToken && storedUser) {
                 const parsedUser = JSON.parse(storedUser);
                 setToken(storedToken);
                 setUser(parsedUser);
                 console.log('[Auth] Session restored', parsedUser.username);
-            } catch (e) {
-                console.error('[Auth] Failed to parse stored user', e);
-                localStorage.removeItem('matrix_token');
-                localStorage.removeItem('matrix_user');
             }
-        }
-
-        // Safety timeout to ensure loading screen doesn't hang indefinitely
-        const timer = setTimeout(() => {
+        } catch (e) {
+            console.error('[Auth] Failed to restore session', e);
+            localStorage.removeItem('matrix_token');
+            localStorage.removeItem('matrix_user');
+        } finally {
+            // Always set loading to false after checking
             setIsLoading(false);
             console.log('[Auth] Loading complete');
-        }, 100);
-
-        return () => clearTimeout(timer);
+        }
     }, []);
 
     const login = async (email: string, password: string) => {

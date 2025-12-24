@@ -13,11 +13,18 @@ Matrix is an AI-powered autonomous security testing platform that democratizes p
 
 ## ✨ Features
 
-- 🤖 **AI-Powered Analysis** - Gemini AI for intelligent vulnerability detection
-- 🔍 **Multiple Security Agents** - SQL Injection, XSS, Auth, API Security
-- 📊 **Beautiful Dashboard** - Real-time scan monitoring and results
-- 📝 **Detailed Reports** - CVSS scoring, OWASP mapping, remediation guides
+- 🤖 **AI-Powered Analysis** - Groq AI (Llama 3.3 70B) for intelligent vulnerability detection
+- 🔍 **8 Security Agents** - SQL Injection, XSS, CSRF, SSRF, Command Injection, Auth, API Security, GitHub
+- 📊 **Actionable Findings** - CVSS v3.1 scoring, evidence chains, diff-based detection
+- 📝 **Multi-Format Reports** - JSON/HTML/Markdown with PoC payloads and remediation code
+- 🎯 **Production-Grade** - WAF evasion, rate limiting, request caching, statistical analysis
 - 🔌 **REST API** - Programmatic access for CI/CD integration
+
+## 📖 Documentation
+
+- **[Actionable Findings Guide](ACTIONABLE_FINDINGS.md)** - Structured reporting, evidence tracking, diff detection
+- **[Quick Reference](QUICK_REFERENCE.md)** - API usage and code examples
+- **Security Refinements** - Agent performance, correlation engine, exploitability gates
 
 ## 🏗️ Architecture
 

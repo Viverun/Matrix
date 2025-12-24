@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # JWT Authentication
     secret_key: str = "change-this-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 10080  # 7 days
     
     # Redis
     redis_url: str = "redis://localhost:6379"

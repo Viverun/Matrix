@@ -176,12 +176,21 @@ class SQLInjectionAgent(BaseSecurityAgent):
         
         print(f"[SQL Agent] Using {len(payloads_to_use)} payloads (DB: {detected_db or 'generic'})")
         
-        for endpoint in endpoints[:5]:  # Limit endpoints for demo
+        tested_count = 0
+        max_endpoints_to_test = 20  # Test up to 20 endpoints
+        
+        for endpoint in endpoints[:max_endpoints_to_test]:
             url = endpoint.get("url", "")
             method = endpoint.get("method", "GET")
             params = endpoint.get("params", {})
             
-            # Test error-based injection
+            # Skip endpoints without parameters
+            if not params:
+                continue
+            
+            tested_count += 1
+            print(f"[SQL Agent] Testing endpoint {tested_count}: {url} with params: {list(params.keys())}")
+            
             # Test error-based injection
             for param_name in params.keys():
                 vuln = await self._test_error_based(
@@ -189,7 +198,7 @@ class SQLInjectionAgent(BaseSecurityAgent):
                     method, 
                     params, 
                     param_name, 
-                    payloads=payloads_to_use[:10]
+                    payloads=payloads_to_use[:15]  # Test more payloads
                 )
                 if vuln:
                     results.append(vuln)
@@ -200,7 +209,9 @@ class SQLInjectionAgent(BaseSecurityAgent):
                             db_type=detected_db,
                             discovered_by="sql_injection"
                         )
-                    break
+                    # Continue testing other parameters too
+        
+        print(f"[SQL Agent] Tested {tested_count} endpoints with parameters, found {len(results)} vulnerabilities")
         
         return results
     

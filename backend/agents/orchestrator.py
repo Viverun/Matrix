@@ -72,6 +72,15 @@ class AgentOrchestrator:
     
     def _register_default_agents(self):
         """Register default agents with dependency configuration."""
+        # Import agents here to avoid circular imports
+        from .sql_injection_agent import SQLInjectionAgent
+        from .xss_agent import XSSAgent
+        from .auth_agent import AuthenticationAgent
+        from .api_security_agent import APISecurityAgent
+        from .csrf_agent import CSRFAgent
+        from .ssrf_agent import SSRFAgent
+        from .command_injection_agent import CommandInjectionAgent
+        
         # GitHub agent - runs first in recon phase (no dependencies)
         github_agent = GithubSecurityAgent()
         self.register_agent(
@@ -79,6 +88,69 @@ class AgentOrchestrator:
             phase=AgentPhase.RECONNAISSANCE,
             dependencies=[],
             timeout_seconds=600  # 10 minutes for repo scanning
+        )
+        
+        # Authentication agent - runs early, informs other agents
+        auth_agent = AuthenticationAgent()
+        self.register_agent(
+            auth_agent,
+            phase=AgentPhase.DISCOVERY,
+            dependencies=["github_security"],
+            timeout_seconds=300
+        )
+        
+        # API Security agent - foundational checks
+        api_agent = APISecurityAgent()
+        self.register_agent(
+            api_agent,
+            phase=AgentPhase.DISCOVERY,
+            dependencies=["github_security"],
+            timeout_seconds=300
+        )
+        
+        # SQL Injection agent
+        sqli_agent = SQLInjectionAgent()
+        self.register_agent(
+            sqli_agent,
+            phase=AgentPhase.EXPLOITATION,
+            dependencies=["authentication", "api_security"],
+            timeout_seconds=600
+        )
+        
+        # XSS agent
+        xss_agent = XSSAgent()
+        self.register_agent(
+            xss_agent,
+            phase=AgentPhase.EXPLOITATION,
+            dependencies=["authentication", "api_security"],
+            timeout_seconds=600
+        )
+        
+        # CSRF agent
+        csrf_agent = CSRFAgent()
+        self.register_agent(
+            csrf_agent,
+            phase=AgentPhase.EXPLOITATION,
+            dependencies=["authentication"],
+            timeout_seconds=300
+        )
+        
+        # SSRF agent
+        ssrf_agent = SSRFAgent()
+        self.register_agent(
+            ssrf_agent,
+            phase=AgentPhase.EXPLOITATION,
+            dependencies=["api_security"],
+            timeout_seconds=300
+        )
+        
+        # Command Injection agent
+        cmd_agent = CommandInjectionAgent()
+        self.register_agent(
+            cmd_agent,
+            phase=AgentPhase.EXPLOITATION,
+            dependencies=["api_security"],
+            timeout_seconds=300
         )
     
     def register_agent(
@@ -164,6 +236,36 @@ class AgentOrchestrator:
             return [
                 ep for ep in all_endpoints
                 if ep.get("params") or "search" in ep["url"].lower() or "q=" in ep["url"]
+            ]
+        
+        # CSRF agent: state-changing endpoints (POST, PUT, DELETE)
+        elif agent_name == "csrf":
+            return [
+                ep for ep in all_endpoints
+                if ep.get("method", "GET").upper() in ["POST", "PUT", "DELETE", "PATCH"]
+                or any(p in ep["url"].lower() for p in ["/update", "/delete", "/create", "/edit", "/submit"])
+            ]
+        
+        # SSRF agent: endpoints that might fetch external resources
+        elif agent_name == "ssrf":
+            ssrf_patterns = [r'url', r'link', r'src', r'href', r'path', r'file', r'fetch', r'redirect', r'callback', r'proxy']
+            return [
+                ep for ep in all_endpoints
+                if any(
+                    any(re.search(pattern, str(p), re.IGNORECASE) for pattern in ssrf_patterns)
+                    for p in ep.get("params", {}).keys()
+                ) or any(re.search(pattern, ep["url"], re.IGNORECASE) for pattern in ssrf_patterns)
+            ]
+        
+        # Command Injection agent: endpoints with execution-like parameters
+        elif agent_name == "command_injection":
+            cmd_patterns = [r'cmd', r'exec', r'command', r'run', r'ping', r'host', r'ip', r'file', r'path']
+            return [
+                ep for ep in all_endpoints
+                if any(
+                    any(re.search(pattern, str(p), re.IGNORECASE) for pattern in cmd_patterns)
+                    for p in ep.get("params", {}).keys()
+                ) or ep.get("params")  # Test any endpoint with params
             ]
         
         # GitHub agent: pass original URL
@@ -274,10 +376,13 @@ class AgentOrchestrator:
             # Step 1: Validate evidence (auto-downgrade findings without evidence)
             self.results = self._validate_evidence(self.results)
             
-            # Step 2: Correlate findings (aggregate → reason → score)
+            # Step 2: Filter false positives (mark low-confidence/placeholder findings)
+            self.results = self._filter_false_positives(self.results)
+            
+            # Step 3: Correlate findings (aggregate → reason → score)
             self.results = self._correlate_results(self.results)
             
-            # Step 3: Apply exploitability gates (downgrade if gates fail)
+            # Step 4: Apply exploitability gates (downgrade if gates fail)
             self.results = self._apply_exploitability_gates(self.results)
             
             # Step 4: Deduplicate and sort
@@ -366,6 +471,7 @@ class AgentOrchestrator:
         # Group agents by phase
         phases = {
             AgentPhase.RECONNAISSANCE: [],
+            AgentPhase.DISCOVERY: [],
             AgentPhase.EXPLOITATION: [],
             AgentPhase.ANALYSIS: []
         }
@@ -382,7 +488,7 @@ class AgentOrchestrator:
         
         current_phase_num = 0
         
-        for phase in [AgentPhase.RECONNAISSANCE, AgentPhase.EXPLOITATION, AgentPhase.ANALYSIS]:
+        for phase in [AgentPhase.RECONNAISSANCE, AgentPhase.DISCOVERY, AgentPhase.EXPLOITATION, AgentPhase.ANALYSIS]:
             phase_agents = phases[phase]
             if not phase_agents:
                 continue
@@ -597,25 +703,36 @@ class AgentOrchestrator:
         Returns:
             List of discovered endpoints
         """
+        from scanner.target_analyzer import TargetAnalyzer
+        
         # Ensure target_url has scheme
         if not target_url.startswith(("http://", "https://")):
             target_url = f"http://{target_url}"
+        
+        try:
+            # Use the actual target analyzer
+            analyzer = TargetAnalyzer(timeout=30.0, max_depth=2)
+            analysis = await analyzer.analyze(target_url)
+            await analyzer.close()
             
-        # Ensure target_url doesn't have duplicate slashes when joining
-        base_url = target_url.rstrip("/")
-        
-        endpoints = [
-            {"url": base_url, "method": "GET", "params": {}},
-            {"url": f"{base_url}/xss", "method": "GET", "params": {"q": "<script>alert(1)</script>"}},
-            {"url": f"{base_url}/sqli", "method": "GET", "params": {"id": "1' OR '1'='1"}},
-            {"url": f"{base_url}/login", "method": "GET", "params": {}},
-            {"url": f"{base_url}/login", "method": "POST", "params": {"username": "", "password": ""}},
-            {"url": f"{base_url}/api", "method": "GET", "params": {}},
-            {"url": f"{base_url}/search", "method": "GET", "params": {"q": ""}},
-        ]
-
-        
-        return endpoints
+            # Convert discovered endpoints to dict format
+            endpoints = [ep.to_dict() for ep in analysis.endpoints]
+            
+            print(f"[Orchestrator] Discovered {len(endpoints)} endpoints from target analysis")
+            
+            # If no endpoints found, add at least the base URL
+            if not endpoints:
+                endpoints = [{"url": target_url, "method": "GET", "params": {}}]
+            
+            return endpoints
+            
+        except Exception as e:
+            print(f"[Orchestrator] Error discovering endpoints: {e}")
+            # Fallback to basic endpoints
+            base_url = target_url.rstrip("/")
+            return [
+                {"url": base_url, "method": "GET", "params": {}},
+            ]
     
     async def _detect_technology(self, target_url: str) -> List[str]:
         """
@@ -1002,6 +1119,89 @@ class AgentOrchestrator:
                     result.confidence = min(result.confidence, 50)
         
         return results
+    
+    def _filter_false_positives(self, results: List[AgentResult]) -> List[AgentResult]:
+        """
+        Filter out or mark false positive findings based on AI analysis signals.
+        
+        False Positive Signals:
+        1. AI explicitly marked is_vulnerable: false
+        2. Confidence score < 30 (very low confidence)
+        3. Analysis contains false positive keywords
+        4. Evidence is placeholder text (YOUR_API_KEY_HERE, example, etc.)
+        
+        Args:
+            results: List of findings to filter
+            
+        Returns:
+            Filtered results with false positives removed or marked
+        """
+        filtered_results = []
+        
+        false_positive_keywords = [
+            "not vulnerable",
+            "false positive", 
+            "placeholder",
+            "example value",
+            "your_api_key_here",
+            "xxx-xxx",
+            "not exploitable",
+            "properly encoded",
+            "correctly sanitized"
+        ]
+        
+        placeholder_patterns = [
+            r"YOUR_.*_HERE",
+            r"EXAMPLE_.*",
+            r"\*\*\*\*",
+            r"xxxx",
+            r"<YOUR.*>",
+            r"\[INSERT.*\]"
+        ]
+        
+        for result in results:
+            is_false_positive = False
+            fp_reason = None
+            
+            # Check 1: Very low confidence (AI unsure)
+            if result.confidence < 30:
+                is_false_positive = True
+                fp_reason = f"Very low confidence ({result.confidence}%) indicates insufficient evidence"
+            
+            # Check 2: False positive keywords in analysis
+            analysis_lower = result.ai_analysis.lower()
+            for keyword in false_positive_keywords:
+                if keyword in analysis_lower:
+                    is_false_positive = True
+                    fp_reason = f"AI analysis indicates '{keyword}'"
+                    break
+            
+            # Check 3: Evidence contains placeholder patterns
+            evidence_text = (result.evidence or "").upper()
+            for pattern in placeholder_patterns:
+                if re.search(pattern, evidence_text, re.IGNORECASE):
+                    is_false_positive = True
+                    fp_reason = f"Evidence contains placeholder pattern"
+                    break
+            
+            # Check 4: Missing header findings with no actual security impact
+            if result.vulnerability_type in [VulnerabilityType.SECURITY_MISCONFIGURATION]:
+                # These are valid LOW findings, not false positives
+                # Just ensure they're properly classified
+                if result.severity in [Severity.HIGH, Severity.CRITICAL]:
+                    result.severity = Severity.LOW
+                    result.ai_analysis += "\n\n[Calibration] Security configuration findings are LOW severity unless proven exploitable."
+            
+            if is_false_positive:
+                print(f"[Orchestrator] Filtered false positive: '{result.title}' - {fp_reason}")
+                # Instead of removing, mark as INFO with explanation
+                result.severity = Severity.INFO
+                result.confidence = min(result.confidence, 25)
+                result.ai_analysis += f"\n\n[False Positive Filter] This finding was flagged as potential false positive: {fp_reason}. Manual verification recommended."
+            
+            filtered_results.append(result)
+        
+        return filtered_results
     
     def _apply_exploitability_gates(self, results: List[AgentResult]) -> List[AgentResult]:
         """

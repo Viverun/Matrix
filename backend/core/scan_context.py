@@ -24,6 +24,7 @@ except ImportError:
 class AgentPhase(str, Enum):
     """Execution phases for agent dependency graph."""
     RECONNAISSANCE = "reconnaissance"
+    DISCOVERY = "discovery"
     EXPLOITATION = "exploitation"
     ANALYSIS = "analysis"
     REPORTING = "reporting"

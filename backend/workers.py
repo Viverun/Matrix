@@ -12,16 +12,40 @@ from models.scan import Scan, ScanStatus
 from models.vulnerability import Vulnerability, Severity, VulnerabilityType
 from agents.orchestrator import orchestrator
 
-async def run_scan_task(scan_id: int):
+
+def run_scan_task(scan_id: int):
     """
-    Execute a scan in the background.
+    Execute a scan in the background (sync wrapper for async).
     
     Args:
         scan_id: ID of the scan to execute
     """
     print(f"[Worker] Starting scan task for ID: {scan_id}")
     
+    # Create new event loop for background task
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_run_scan_async(scan_id))
+    except Exception as e:
+        print(f"[Worker] Error in scan task: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        loop.close()
+
+
+async def _run_scan_async(scan_id: int):
+    """
+    Async implementation of the scan task.
+    
+    Args:
+        scan_id: ID of the scan to execute
+    """
+    print(f"[Worker] Running async scan for ID: {scan_id}")
+    
     async with async_session_maker() as db:
+        scan = None
         try:
             # Fetch scan
             result = await db.execute(
@@ -33,31 +57,13 @@ async def run_scan_task(scan_id: int):
                 print(f"[Worker] Scan {scan_id} not found")
                 return
             
-            # Check for cached results (same URL, completed successfully in last 24h)
-            # This is our caching layer
-            # cutoff_time = datetime.utcnow() - timedelta(hours=24)
-            # cache_query = select(Scan).where(
-            #     and_(
-            #         Scan.target_url == scan.target_url,
-            #         Scan.status == ScanStatus.COMPLETED,
-            #         Scan.created_at >= cutoff_time,
-            #         Scan.id != scan_id 
-            #     )
-            # ).order_by(Scan.created_at.desc()).limit(1)
-            
-            # cache_result = await db.execute(cache_query)
-            # cached_scan = cache_result.scalar_one_or_none()
-            
-            # if cached_scan:
-            #     print(f"[Worker] Found cached scan {cached_scan.id} for {scan.target_url}")
-            #     await _apply_cached_results(db, scan, cached_scan)
-            #     return
-
-            # No cache, run actual scan
+            # Run actual scan
             await _execute_orchestrator(db, scan)
             
         except Exception as e:
             print(f"[Worker] Error in scan task: {e}")
+            import traceback
+            traceback.print_exc()
             if scan:
                 scan.status = ScanStatus.FAILED
                 scan.error_message = str(e)
@@ -169,6 +175,14 @@ async def _execute_orchestrator(db: AsyncSession, scan: Scan):
                 exploitability_rationale=res.exploitability_rationale
             )
             db.add(vuln)
+        
+        # Update scan counts based on results
+        scan.total_vulnerabilities = len(results)
+        scan.critical_count = sum(1 for r in results if r.severity.value == 'critical')
+        scan.high_count = sum(1 for r in results if r.severity.value == 'high')
+        scan.medium_count = sum(1 for r in results if r.severity.value == 'medium')
+        scan.low_count = sum(1 for r in results if r.severity.value == 'low')
+        scan.info_count = sum(1 for r in results if r.severity.value == 'info')
         
         scan.status = ScanStatus.COMPLETED
         scan.completed_at = datetime.utcnow()

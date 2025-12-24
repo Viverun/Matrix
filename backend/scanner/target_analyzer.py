@@ -118,6 +118,20 @@ class TargetAnalyzer:
         "/checkout",
     ]
     
+    # Common vulnerable paths for test sites
+    VULNERABLE_TEST_PATHS = [
+        "/listproducts.php?cat=1",
+        "/listproducts.php?artist=1",
+        "/artists.php?artist=1",
+        "/product.php?pic=1",
+        "/guestbook.php",
+        "/search.php?test=query",
+        "/login.php",
+        "/userinfo.php",
+        "/comment.php",
+        "/showimage.php?file=",
+    ]
+    
     def __init__(self, timeout: float = 30.0, max_depth: int = 2):
         """
         Initialize the target analyzer.
@@ -150,6 +164,10 @@ class TargetAnalyzer:
             TargetAnalysis object with all discoveries
         """
         self.visited_urls.clear()
+        
+        # Ensure URL has scheme
+        if not target_url.startswith(("http://", "https://")):
+            target_url = f"http://{target_url}"
         
         analysis = TargetAnalysis(target_url=target_url)
         
@@ -320,10 +338,17 @@ class TargetAnalyzer:
             if parsed_url.netloc == parsed_base.netloc:
                 if full_url not in self.visited_urls:
                     self.visited_urls.add(full_url)
+                    
+                    # Parse query parameters properly
+                    query_params = {}
+                    if parsed_url.query:
+                        for key, values in parse_qs(parsed_url.query).items():
+                            query_params[key] = values[0] if values else ""
+                    
                     endpoints.append(DiscoveredEndpoint(
                         url=full_url.split("?")[0],
                         method="GET",
-                        params=dict(parse_qs(parsed_url.query))
+                        params=query_params
                     ))
         
         # Extract URLs from JavaScript
@@ -338,16 +363,25 @@ class TargetAnalyzer:
                 ))
         
         # Check common paths
-        for path in self.COMMON_PATHS:
+        for path in self.COMMON_PATHS + self.VULNERABLE_TEST_PATHS:
             full_url = urljoin(base_url, path)
             if full_url not in self.visited_urls:
                 try:
                     response = await self.http_client.head(full_url, timeout=5.0)
                     if response.status_code < 400:
                         self.visited_urls.add(full_url)
+                        
+                        # Parse query parameters from path
+                        parsed_url = urlparse(full_url)
+                        query_params = {}
+                        if parsed_url.query:
+                            for key, values in parse_qs(parsed_url.query).items():
+                                query_params[key] = values[0] if values else ""
+                        
                         endpoints.append(DiscoveredEndpoint(
-                            url=full_url,
+                            url=full_url.split("?")[0],
                             method="GET",
+                            params=query_params,
                             requires_auth=response.status_code in [401, 403]
                         ))
                 except:

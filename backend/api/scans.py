@@ -27,9 +27,14 @@ async def create_scan(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new security scan."""
+    # Normalize target URL - strip whitespace and ensure scheme
+    target_url = scan_data.target_url.strip()
+    if not target_url.startswith(("http://", "https://")):
+        target_url = f"http://{target_url}"
+    
     # Create scan record
     new_scan = Scan(
-        target_url=scan_data.target_url,
+        target_url=target_url,
         target_name=scan_data.target_name,
         scan_type=scan_data.scan_type,
         agents_enabled=scan_data.agents_enabled,

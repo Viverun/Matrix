@@ -396,7 +396,7 @@ class GroqClient:
         template_config = PROMPT_TEMPLATES.get(vuln_key, PROMPT_TEMPLATES["default"])
         
         # Build specialized prompt
-        if vuln_key == "default":
+        if vuln_key == "default" or vuln_key not in PROMPT_TEMPLATES:
             prompt = template_config["template"].format(
                 vuln_type=vulnerability_type,
                 context=context[:1500],
