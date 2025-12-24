@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js build output
+.next/
+frontend/.next/
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+
+# Environment variables (secrets)
+.env
+backend/.env
