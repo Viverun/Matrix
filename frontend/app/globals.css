@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Spectral:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -213,6 +213,10 @@ body {
   font-size: 0.85rem;
   line-height: 1.6;
   color: #E8D5BC;
+}
+
+.font-serif-display {
+  font-family: 'Spectral', 'Cormorant Garamond', serif;
 }
 
 .terminal-prompt::before {

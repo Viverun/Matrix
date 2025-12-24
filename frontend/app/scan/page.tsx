@@ -1,98 +1,87 @@
 'use client';
 
-import { useState } from 'react';
-import { Shield, Target, FileSearch, ArrowRight, CheckCircle, AlertTriangle, XCircle, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Target, FileSearch, ArrowRight, CheckCircle, AlertTriangle, XCircle, ArrowLeft, LogOut, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { SpiderWeb } from '../../components/SpiderWeb';
+import { useAuth } from '../../context/AuthContext';
+import { api, Scan, Vulnerability } from '../../lib/api';
+import { useRouter } from 'next/navigation';
+
+import { Navbar } from '../../components/Navbar';
 
 export default function ScanPage() {
+    const { user, logout, isAuthenticated } = useAuth();
+    const router = useRouter();
     const [targetUrl, setTargetUrl] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
-    const [scanResults, setScanResults] = useState<any>(null);
+    const [scanResults, setScanResults] = useState<Scan | null>(null);
+    const [findings, setFindings] = useState<Vulnerability[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
     const handleStartScan = async () => {
         if (!targetUrl) return;
 
+        // Check authentication before allowing scan
+        if (!isAuthenticated) {
+            router.push('/login?message=You need to be authenticated to start a security scan');
+            return;
+        }
+
         setIsScanning(true);
         setScanProgress(0);
         setScanResults(null);
+        setFindings([]);
+        setError(null);
 
-        const interval = setInterval(() => {
-            setScanProgress(prev => {
-                if (prev >= 100) {
+        try {
+            const newScan = await api.createScan({
+                target_url: targetUrl,
+                scan_type: 'full'
+            });
+
+            setScanResults(newScan);
+
+            // Poll for status
+            const interval = setInterval(async () => {
+                try {
+                    const statusUpdate = await api.getScan(newScan.id);
+                    setScanProgress(statusUpdate.progress);
+                    setScanResults(statusUpdate);
+
+                    if (statusUpdate.status === 'completed') {
+                        clearInterval(interval);
+                        setIsScanning(false);
+                        const results = await api.getVulnerabilities(newScan.id);
+                        setFindings(results.items);
+                    } else if (statusUpdate.status === 'failed' || statusUpdate.status === 'cancelled') {
+                        clearInterval(interval);
+                        setIsScanning(false);
+                        setError(statusUpdate.error_message || 'Scan terminated unexpectedly');
+                    }
+                } catch (err: any) {
                     clearInterval(interval);
                     setIsScanning(false);
-                    setScanResults({
-                        total: 7,
-                        critical: 1,
-                        high: 2,
-                        medium: 3,
-                        low: 1,
-                        vulnerabilities: [
-                            { type: 'SQL Injection', severity: 'critical', url: '/api/users', parameter: 'id' },
-                            { type: 'XSS (Reflected)', severity: 'high', url: '/search', parameter: 'q' },
-                            { type: 'Missing Security Headers', severity: 'medium', url: '/', parameter: null },
-                        ]
-                    });
-                    return 100;
+                    setError('Communication failure during audit cycle');
                 }
-                return prev + Math.random() * 15;
-            });
-        }, 500);
+            }, 2000);
+        } catch (err: any) {
+            setIsScanning(false);
+            setError(err.message || 'Failed to initialize security mesh');
+        }
     };
 
     return (
         <div className="min-h-screen">
-            {/* Navbar */}
-            <header className="glass-nav sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-primary to-accent-primary/80 flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow">
-                            <Shield className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-xl font-serif font-medium text-text-primary">
-                            <span className="text-accent-primary">M</span>atrix
-                        </h1>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-8">
-                        <Link href="/" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            About
-                        </Link>
-                        <Link href="/hub" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Features
-                        </Link>
-                        <Link href="/scan" className="text-accent-primary font-medium">
-                            Scan
-                        </Link>
-                        <Link href="/repo" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Repository
-                        </Link>
-                        <Link href="/dashboard" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Dashboard
-                        </Link>
-                        <Link href="/docs" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Docs
-                        </Link>
-                    </nav>
-
-                    <div className="flex items-center gap-4">
-                        <button className="btn-secondary hidden sm:block">
-                            Sign In
-                        </button>
-                        <Link href="/hub" className="btn-primary">
-                            Get Started
-                        </Link>
-                    </div>
-                </div>
-            </header>
+            <Navbar />
 
             {/* Page Header */}
             <section className="py-12 px-6 border-b border-warm-200">
                 <div className="max-w-4xl mx-auto">
-                    <Link href="/" className="inline-flex items-center gap-2 text-text-muted hover:text-accent-primary transition-colors mb-4">
+                    <Link href="/hub" className="inline-flex items-center gap-2 text-text-muted hover:text-accent-primary transition-colors mb-4">
                         <ArrowLeft className="w-4 h-4" />
-                        Back to Home
+                        Back to Hub
                     </Link>
                     <h2 className="text-3xl md:text-4xl font-serif font-medium text-text-primary mb-2">
                         Security Scanner
@@ -143,6 +132,17 @@ export default function ScanPage() {
                         </div>
                     </div>
 
+                    {/* Error Alert */}
+                    {error && (
+                        <div className="mb-8 p-4 bg-red-500/5 border border-red-200 rounded-xl flex items-center gap-3 text-red-600 animate-fade-in">
+                            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                            <div>
+                                <div className="font-bold text-sm uppercase tracking-widest mb-1">Audit Failure</div>
+                                <div className="text-sm opacity-90">{error}</div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Progress */}
                     {isScanning && (
                         <div className="glass-card p-6 mb-8 animate-fade-in">
@@ -179,47 +179,50 @@ export default function ScanPage() {
                                 {/* Stats Grid */}
                                 <div className="grid grid-cols-5 gap-3 mb-6">
                                     {[
-                                        { count: scanResults.critical, label: 'Critical', color: 'bg-red-50 border-red-200 text-red-600' },
-                                        { count: scanResults.high, label: 'High', color: 'bg-orange-50 border-orange-200 text-orange-600' },
-                                        { count: scanResults.medium, label: 'Medium', color: 'bg-amber-50 border-amber-200 text-amber-600' },
-                                        { count: scanResults.low, label: 'Low', color: 'bg-blue-50 border-blue-200 text-blue-600' },
-                                        { count: scanResults.total, label: 'Total', color: 'bg-warm-100 border-warm-300 text-accent-primary' },
+                                        { count: scanResults.critical_count, label: 'Critical', color: 'bg-red-50 border-red-200 text-red-600' },
+                                        { count: scanResults.high_count, label: 'High', color: 'bg-orange-50 border-orange-200 text-orange-600' },
+                                        { count: scanResults.medium_count, label: 'Medium', color: 'bg-amber-50 border-amber-200 text-amber-600' },
+                                        { count: scanResults.low_count, label: 'Low', color: 'bg-blue-50 border-blue-200 text-blue-600' },
+                                        { count: scanResults.total_vulnerabilities, label: 'Total', color: 'bg-warm-100 border-warm-300 text-accent-primary' },
                                     ].map((stat, i) => (
                                         <div key={i} className={`text-center p-3 rounded-xl border ${stat.color}`}>
                                             <div className="text-2xl font-bold">{stat.count}</div>
-                                            <div className="text-xs opacity-75">{stat.label}</div>
+                                            <div className="text-xs opacity-75 uppercase tracking-tighter font-bold">{stat.label}</div>
                                         </div>
                                     ))}
                                 </div>
 
                                 {/* Vulnerability List */}
                                 <div className="space-y-3">
-                                    {scanResults.vulnerabilities.map((vuln: any, i: number) => (
+                                    {findings.map((vuln, i) => (
                                         <div
                                             key={i}
-                                            className="flex items-center justify-between p-4 bg-white/50 rounded-xl border border-warm-200 hover:border-warm-400 transition-colors"
+                                            className="group flex items-center justify-between p-4 bg-white/50 rounded-xl border border-warm-200 hover:border-accent-primary/20 hover:bg-white transition-all duration-300"
                                         >
                                             <div className="flex items-center gap-4">
                                                 {vuln.severity === 'critical' && <XCircle className="w-5 h-5 text-red-500" />}
                                                 {vuln.severity === 'high' && <AlertTriangle className="w-5 h-5 text-orange-500" />}
                                                 {vuln.severity === 'medium' && <AlertTriangle className="w-5 h-5 text-amber-500" />}
-                                                <div>
-                                                    <div className="font-semibold text-text-primary">{vuln.type}</div>
-                                                    <div className="text-sm text-text-muted">
-                                                        {vuln.url} {vuln.parameter && `→ ${vuln.parameter}`}
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-text-primary uppercase tracking-tight truncate">{vuln.vulnerability_type}</div>
+                                                    <div className="text-sm text-text-muted truncate max-w-[200px] sm:max-w-md">
+                                                        {vuln.url} {vuln.parameter && <span className="text-accent-primary ml-1 opacity-70">[{vuln.parameter}]</span>}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <span className={`severity-${vuln.severity}`}>
-                                                {vuln.severity.toUpperCase()}
+                                            <span className={`severity-tag severity-${vuln.severity} px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest`}>
+                                                {vuln.severity}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
 
-                                <button className="btn-primary w-full mt-6">
-                                    View Full Report
-                                </button>
+                                <Link
+                                    href={`/scans/${scanResults.id}`}
+                                    className="btn-primary w-full mt-6 text-center shadow-lg hover:shadow-xl transition-all"
+                                >
+                                    Deep Architecture Audit
+                                </Link>
                             </div>
                         </div>
                     )}

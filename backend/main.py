@@ -1,5 +1,5 @@
 """
-CyberMatrix - Agent-Driven Cyber Threat Simulator
+Matrix - Agent-Driven Cyber Threat Simulator
 Main FastAPI Application
 """
 from contextlib import asynccontextmanager
@@ -21,7 +21,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
-    print("Starting CyberMatrix...")
+    print("Starting Matrix...")
     await init_db()
     
     # Register agents
@@ -33,14 +33,14 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    print("🔄 Shutting down CyberMatrix...")
+    print("🔄 Shutting down Matrix...")
     await close_db()
     print("✅ Cleanup complete")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="CyberMatrix",
+    title="Matrix",
     description="Agent-Driven Cyber Threat Simulator - AI-powered security testing platform",
     version="1.0.0",
     lifespan=lifespan,
@@ -74,7 +74,7 @@ async def health_check():
 async def root():
     """API information."""
     return {
-        "name": "CyberMatrix API",
+        "name": "Matrix API",
         "description": "Agent-Driven Cyber Threat Simulator",
         "version": "1.0.0",
         "docs": "/docs",

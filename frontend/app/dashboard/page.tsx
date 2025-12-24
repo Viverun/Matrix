@@ -2,264 +2,321 @@
 
 import { useState, useEffect } from 'react';
 import {
-    Shield, Target, FileSearch, Activity,
+    Target, FileSearch, Activity,
     TrendingUp, AlertTriangle, CheckCircle, Clock,
-    Plus, RefreshCw, Download
+    Plus, RefreshCw, Download, Zap, ArrowRight, Code, FileText, XCircle, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
+import { SpiderWeb } from '../../components/SpiderWeb';
+import { useAuth } from '../../context/AuthContext';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { LogOut } from 'lucide-react';
 
-// Mock data
-const mockScans = [
-    { id: 1, target: 'https://example.com', status: 'completed', vulnerabilities: 7, date: '2024-01-15' },
-    { id: 2, target: 'https://api.myapp.io', status: 'running', vulnerabilities: 0, date: '2024-01-15' },
-    { id: 3, target: 'https://staging.test.com', status: 'completed', vulnerabilities: 3, date: '2024-01-14' },
-];
+import { api, Scan } from '../../lib/api';
 
-const mockStats = {
-    totalScans: 24,
-    totalVulnerabilities: 87,
-    criticalVulnerabilities: 5,
-    fixedVulnerabilities: 62,
-};
+import { Navbar } from '../../components/Navbar';
 
 export default function DashboardPage() {
-    const [scans, setScans] = useState(mockScans);
-    const [stats, setStats] = useState(mockStats);
+    const { user, logout } = useAuth();
+    // Navbar visible/scroll logic moved to Navbar component
+
+    const [scans, setScans] = useState<Scan[]>([]);
+    const [stats, setStats] = useState({
+        totalScans: 0,
+        totalVulnerabilities: 0,
+        criticalVulnerabilities: 0,
+        fixedVulnerabilities: 0,
+    });
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchData = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const data = await api.getScans(1, 10);
+            setScans(data.items);
+
+            const aggregate = data.items.reduce((acc, scan) => ({
+                totalScans: data.total,
+                totalVulnerabilities: acc.totalVulnerabilities + (scan.total_vulnerabilities || 0),
+                criticalVulnerabilities: acc.criticalVulnerabilities + (scan.critical_count || 0),
+                fixedVulnerabilities: acc.fixedVulnerabilities + (scan.info_count || 0),
+            }), {
+                totalScans: data.total,
+                totalVulnerabilities: 0,
+                criticalVulnerabilities: 0,
+                fixedVulnerabilities: 0
+            });
+            setStats(aggregate);
+        } catch (err: any) {
+            setError(err.message || 'Failed to fetch security orchestration data');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <header className="border-b border-cyber-accent/20 bg-cyber-dark/50 backdrop-blur-sm sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="flex items-center gap-3">
-                            <Shield className="w-8 h-8 text-cyber-accent" />
-                            <h1 className="text-xl font-bold text-white">
-                                Cyber<span className="text-cyber-accent">Matrix</span>
-                            </h1>
+        <ProtectedRoute>
+            <div className="min-h-screen bg-bg-primary pattern-bg">
+                <Navbar />
+                <main className="max-w-7xl mx-auto px-6 py-12">
+                    {/* Page Title */}
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                        <div className="animate-slide-up">
+                            <h2 className="text-4xl font-serif-display font-medium text-text-primary">Security Command Center</h2>
+                            <p className="text-text-secondary mt-2 text-lg">Centralized intelligence and historical audit orchestration.</p>
+                        </div>
+                        <Link
+                            href="/scan"
+                            className="btn-primary rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Initiate New Scan
                         </Link>
                     </div>
 
-                    <nav className="flex items-center gap-6">
-                        <Link href="/" className="text-gray-300 hover:text-cyber-accent transition-colors">Home</Link>
-                        <Link href="/hub" className="text-gray-300 hover:text-cyber-accent transition-colors">Features</Link>
-                        <Link href="/dashboard" className="text-cyber-accent font-medium">Dashboard</Link>
-                        <div className="w-8 h-8 bg-cyber-accent/20 rounded-full flex items-center justify-center">
-                            <span className="text-cyber-accent text-sm font-bold">U</span>
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                        <div className="glass-card p-6 border-b-4 border-b-accent-primary/30">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-accent-primary/5 rounded-xl flex items-center justify-center">
+                                    <Target className="w-6 h-6 text-accent-primary" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-text-muted">Aggregate</span>
+                            </div>
+                            <div className="text-4xl font-serif-display font-medium text-text-primary">{stats.totalScans}</div>
+                            <div className="text-sm text-text-secondary mt-1">Total Audit Cycles</div>
                         </div>
-                    </nav>
-                </div>
-            </header>
 
-            <main className="max-w-7xl mx-auto px-4 py-8">
-                {/* Page Title */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-                        <p className="text-gray-400 mt-1">Overview of your security posture</p>
-                    </div>
-                    <Link href="/scans/new" className="cyber-btn flex items-center gap-2">
-                        <Plus className="w-5 h-5" />
-                        New Scan
-                    </Link>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-4 mb-8">
-                    <div className="cyber-card p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <Target className="w-8 h-8 text-cyber-accent" />
-                            <span className="text-xs text-gray-500">This month</span>
+                        <div className="glass-card p-6 border-b-4 border-b-yellow-500/30">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-yellow-500/5 rounded-xl flex items-center justify-center">
+                                    <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Identified</span>
+                            </div>
+                            <div className="text-4xl font-serif-display font-medium text-text-primary">{stats.totalVulnerabilities}</div>
+                            <div className="text-sm text-text-secondary mt-1">Vulnerabilities Detected</div>
                         </div>
-                        <div className="text-3xl font-bold text-white">{stats.totalScans}</div>
-                        <div className="text-sm text-gray-400">Total Scans</div>
-                    </div>
 
-                    <div className="cyber-card p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <AlertTriangle className="w-8 h-8 text-yellow-500" />
-                            <span className="text-xs text-gray-500">Active</span>
+                        <div className="glass-card p-6 border-b-4 border-b-red-500/30">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-red-500/5 rounded-xl flex items-center justify-center">
+                                    <Zap className="w-6 h-6 text-red-600" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-red-600">Immediate</span>
+                            </div>
+                            <div className="text-4xl font-serif-display font-medium text-red-600">{stats.criticalVulnerabilities}</div>
+                            <div className="text-sm text-text-secondary mt-1">Critical Exceptions</div>
                         </div>
-                        <div className="text-3xl font-bold text-white">{stats.totalVulnerabilities}</div>
-                        <div className="text-sm text-gray-400">Vulnerabilities Found</div>
-                    </div>
 
-                    <div className="cyber-card p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <AlertTriangle className="w-8 h-8 text-red-500" />
-                            <span className="text-xs text-red-500">Urgent</span>
+                        <div className="glass-card p-6 border-b-4 border-b-green-500/30">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-green-500/5 rounded-xl flex items-center justify-center">
+                                    <CheckCircle className="w-6 h-6 text-green-600" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-green-600">Mitigated</span>
+                            </div>
+                            <div className="text-4xl font-serif-display font-medium text-green-600">{stats.fixedVulnerabilities}</div>
+                            <div className="text-sm text-text-secondary mt-1">Resolved Threats</div>
                         </div>
-                        <div className="text-3xl font-bold text-red-500">{stats.criticalVulnerabilities}</div>
-                        <div className="text-sm text-gray-400">Critical Issues</div>
                     </div>
 
-                    <div className="cyber-card p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <CheckCircle className="w-8 h-8 text-green-500" />
-                            <span className="text-xs text-green-500">Resolved</span>
-                        </div>
-                        <div className="text-3xl font-bold text-green-500">{stats.fixedVulnerabilities}</div>
-                        <div className="text-sm text-gray-400">Fixed Issues</div>
-                    </div>
-                </div>
-
-                {/* Main Content Grid */}
-                <div className="grid grid-cols-3 gap-6">
-                    {/* Recent Scans */}
-                    <div className="col-span-2 cyber-card p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Activity className="w-5 h-5 text-cyber-accent" />
-                                Recent Scans
-                            </h3>
-                            <button className="text-gray-400 hover:text-cyber-accent transition-colors">
-                                <RefreshCw className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            {scans.map((scan) => (
-                                <div
-                                    key={scan.id}
-                                    className="flex items-center justify-between p-4 bg-cyber-dark/50 rounded-lg border border-gray-700/50 hover:border-cyber-accent/30 transition-colors"
+                    {/* Main Content Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Recent Scans / Past Reports */}
+                        <div className="lg:col-span-2 glass-card p-8">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-2xl font-serif-display font-medium text-text-primary flex items-center gap-3">
+                                    <div className="w-2 h-8 bg-accent-primary rounded-full" />
+                                    Historical Audit Log
+                                </h3>
+                                <button
+                                    onClick={fetchData}
+                                    disabled={isLoading}
+                                    className="p-2 hover:bg-warm-100 rounded-lg transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-3 h-3 rounded-full ${scan.status === 'running' ? 'bg-cyber-accent animate-pulse' :
-                                            scan.status === 'completed' ? 'bg-green-500' : 'bg-gray-500'
-                                            }`} />
-                                        <div>
-                                            <div className="font-medium text-white">{scan.target}</div>
-                                            <div className="text-sm text-gray-400 flex items-center gap-2">
-                                                <Clock className="w-3 h-3" />
-                                                {scan.date}
+                                    <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
+
+                            {error && error !== 'Not Found' && (
+                                <div className="mb-6 p-4 bg-red-500/5 border border-red-200 rounded-xl flex items-center gap-3 text-red-600 text-sm animate-fade-in">
+                                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {isLoading && scans.length === 0 ? (
+                                    <div className="py-20 text-center space-y-4">
+                                        <Loader2 className="w-10 h-10 text-accent-primary/40 animate-spin mx-auto" />
+                                        <p className="text-text-muted font-serif italic text-lg">Synchronizing audit data...</p>
+                                    </div>
+                                ) : scans.length === 0 ? (
+                                    <div className="py-20 text-center space-y-4">
+                                        <Target className="w-12 h-12 text-warm-300 mx-auto" />
+                                        <p className="text-text-muted font-medium">No historical audit cycles found.</p>
+                                        <Link href="/scan" className="text-accent-primary hover:underline font-bold text-sm uppercase tracking-widest">Initiate First Scan</Link>
+                                    </div>
+                                ) : (
+                                    scans.map((scan) => (
+                                        <div
+                                            key={scan.id}
+                                            className="group flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl border border-warm-200 hover:border-accent-primary/20 hover:bg-white/50 transition-all duration-300"
+                                        >
+                                            <div className="flex items-center gap-5 mb-4 sm:mb-0">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${scan.status === 'running' ? 'bg-accent-primary/5 animate-pulse' :
+                                                    scan.status === 'completed' ? 'bg-green-500/5' : 'bg-warm-100'
+                                                    }`}>
+                                                    <SpiderWeb className={`w-6 h-6 ${scan.status === 'running' ? 'text-accent-primary' :
+                                                        scan.status === 'completed' ? 'text-green-600' : 'text-text-muted'
+                                                        }`} />
+                                                </div>
+                                                <div>
+                                                    <div className="font-medium text-text-primary text-lg truncate max-w-[250px] sm:max-w-md">{scan.target_url}</div>
+                                                    <div className="text-sm text-text-muted flex items-center gap-2 mt-1 font-medium">
+                                                        <Clock className="w-3.5 h-3.5" />
+                                                        {new Date(scan.created_at).toLocaleDateString(undefined, {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between sm:justify-end gap-6 pl-16 sm:pl-0">
+                                                {scan.status === 'completed' && (
+                                                    <div className="text-right">
+                                                        <div className={`text-sm font-bold uppercase tracking-tighter ${scan.total_vulnerabilities > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                                            {scan.total_vulnerabilities} findings
+                                                        </div>
+                                                        <div className="text-xs text-text-muted uppercase tracking-widest font-bold opacity-60">Audit Complete</div>
+                                                    </div>
+                                                )}
+                                                {scan.status === 'running' && (
+                                                    <div className="text-accent-primary text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                                                        <div className="w-4 h-4 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                                                        {scan.progress}% Analysis
+                                                    </div>
+                                                )}
+                                                {scan.status === 'failed' && (
+                                                    <div className="text-red-500 text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                                                        <XCircle className="w-4 h-4" />
+                                                        Scan Failed
+                                                    </div>
+                                                )}
+                                                <Link
+                                                    href={`/scans/${scan.id}`}
+                                                    className="px-4 py-2 bg-warm-100 text-text-primary rounded-lg text-sm font-bold uppercase tracking-wider hover:bg-accent-primary hover:text-white transition-all shadow-sm group-hover:shadow-card"
+                                                >
+                                                    Report
+                                                </Link>
                                             </div>
                                         </div>
-                                    </div>
+                                    ))
+                                )}
+                            </div>
 
-                                    <div className="flex items-center gap-4">
-                                        {scan.status === 'completed' && (
-                                            <div className="text-right">
-                                                <div className={`font-bold ${scan.vulnerabilities > 0 ? 'text-yellow-500' : 'text-green-500'}`}>
-                                                    {scan.vulnerabilities} issues
-                                                </div>
-                                                <div className="text-xs text-gray-500">Found</div>
-                                            </div>
-                                        )}
-                                        {scan.status === 'running' && (
-                                            <div className="text-cyber-accent text-sm flex items-center gap-2">
-                                                <div className="w-4 h-4 border-2 border-cyber-accent border-t-transparent rounded-full animate-spin" />
-                                                Scanning...
-                                            </div>
-                                        )}
-                                        <Link
-                                            href={`/scans/${scan.id}`}
-                                            className="text-gray-400 hover:text-cyber-accent transition-colors"
-                                        >
-                                            View →
-                                        </Link>
-                                    </div>
-                                </div>
-                            ))}
                         </div>
 
-                        <Link
-                            href="/scans"
-                            className="block text-center text-cyber-accent hover:underline mt-4 text-sm"
-                        >
-                            View all scans
+                        {/* Quick Access - Analytics */}
+                        <div className="glass-card p-8">
+                            <h3 className="text-2xl font-serif-display font-medium text-text-primary flex items-center gap-3 mb-6">
+                                <div className="w-2 h-8 bg-accent-gold rounded-full" />
+                                Analytics Hub
+                            </h3>
+
+                            {(() => {
+                                // Calculate security score based on vulnerabilities
+                                // Formula: Start at 100, deduct points based on severity
+                                // Critical: -10 points each, Other vulns: -2 points each (capped at min 0)
+                                const baseScore = 100;
+                                const criticalPenalty = stats.criticalVulnerabilities * 10;
+                                const otherPenalty = (stats.totalVulnerabilities - stats.criticalVulnerabilities) * 2;
+                                const calculatedScore = Math.max(0, baseScore - criticalPenalty - otherPenalty);
+                                const scoreColor = calculatedScore >= 70 ? 'text-green-600' : calculatedScore >= 40 ? 'text-yellow-600' : 'text-red-600';
+
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-accent-primary/5 rounded-xl border border-accent-primary/10">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <TrendingUp className="w-5 h-5 text-accent-primary" />
+                                                <span className="font-medium text-text-primary">Security Score</span>
+                                            </div>
+                                            <div className={`text-3xl font-serif-display font-medium ${scoreColor}`}>
+                                                {calculatedScore}/100
+                                            </div>
+                                            <div className="text-xs text-text-muted mt-1">
+                                                Based on {stats.totalScans} scan{stats.totalScans !== 1 ? 's' : ''}
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-4 rounded-xl border ${stats.criticalVulnerabilities === 0
+                                                ? 'bg-green-500/5 border-green-500/10'
+                                                : 'bg-red-500/5 border-red-500/10'
+                                            }`}>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Activity className={`w-5 h-5 ${stats.criticalVulnerabilities === 0 ? 'text-green-600' : 'text-red-600'}`} />
+                                                <span className="font-medium text-text-primary">System Health</span>
+                                            </div>
+                                            <p className="text-sm text-text-secondary leading-relaxed">
+                                                {stats.criticalVulnerabilities === 0
+                                                    ? 'No critical vulnerabilities detected.'
+                                                    : `${stats.criticalVulnerabilities} critical issue${stats.criticalVulnerabilities !== 1 ? 's' : ''} require attention.`
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <Link
+                                href="/analytics"
+                                className="mt-6 w-full btn-primary rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                            >
+                                <TrendingUp className="w-5 h-5" />
+                                View Full Analytics
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Secondary Actions */}
+                    <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <Link href="/reports" className="glass-card p-6 border-transparent hover:border-accent-primary/20 transition-all group">
+                            <Download className="w-8 h-8 text-accent-primary mb-4 group-hover:scale-110 transition-transform" />
+                            <div className="font-serif-display font-medium text-xl text-text-primary">Export Archives</div>
+                            <div className="text-sm text-text-muted mt-1">Generate white-labeled PDF/JSON reports.</div>
+                        </Link>
+
+                        <Link href="/analytics" className="glass-card p-6 border-transparent hover:border-accent-primary/20 transition-all group">
+                            <TrendingUp className="w-8 h-8 text-accent-primary mb-4 group-hover:scale-110 transition-transform" />
+                            <div className="font-serif-display font-medium text-xl text-text-primary">Vector Trends</div>
+                            <div className="text-sm text-text-muted mt-1">Deep dive into recurring threat patterns.</div>
+                        </Link>
+
+                        <Link href="/integrations" className="glass-card p-6 border-transparent hover:border-accent-primary/20 transition-all group">
+                            <Code className="w-8 h-8 text-accent-primary mb-4 group-hover:scale-110 transition-transform" />
+                            <div className="font-serif-display font-medium text-xl text-text-primary">API Hub</div>
+                            <div className="text-sm text-text-muted mt-1">Configure webhooks and CI/CD pipelines.</div>
+                        </Link>
+
+                        <Link href="/docs" className="glass-card p-6 border-transparent hover:border-accent-primary/20 transition-all group">
+                            <FileText className="w-8 h-8 text-accent-primary mb-4 group-hover:scale-110 transition-transform" />
+                            <div className="font-serif-display font-medium text-xl text-text-primary">Compliance</div>
+                            <div className="text-sm text-text-muted mt-1">Audit logs for ISO/SOC2 readiness.</div>
                         </Link>
                     </div>
-
-                    {/* Vulnerability Breakdown */}
-                    <div className="cyber-card p-6">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-6">
-                            <FileSearch className="w-5 h-5 text-cyber-accent" />
-                            Vulnerability Breakdown
-                        </h3>
-
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                                    <span className="text-gray-300">Critical</span>
-                                </div>
-                                <span className="font-mono text-red-500">5</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 rounded-full bg-orange-500" />
-                                    <span className="text-gray-300">High</span>
-                                </div>
-                                <span className="font-mono text-orange-500">12</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                                    <span className="text-gray-300">Medium</span>
-                                </div>
-                                <span className="font-mono text-yellow-500">28</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 rounded-full bg-blue-500" />
-                                    <span className="text-gray-300">Low</span>
-                                </div>
-                                <span className="font-mono text-blue-500">42</span>
-                            </div>
-                        </div>
-
-                        {/* Simple Bar Chart */}
-                        <div className="mt-6 pt-6 border-t border-gray-700/50">
-                            <div className="h-32 flex items-end gap-2">
-                                {[
-                                    { value: 5, color: 'bg-red-500', label: 'Crit' },
-                                    { value: 12, color: 'bg-orange-500', label: 'High' },
-                                    { value: 28, color: 'bg-yellow-500', label: 'Med' },
-                                    { value: 42, color: 'bg-blue-500', label: 'Low' },
-                                ].map((bar, i) => (
-                                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                        <div
-                                            className={`w-full ${bar.color} rounded-t transition-all duration-500`}
-                                            style={{ height: `${(bar.value / 42) * 100}%` }}
-                                        />
-                                        <span className="text-xs text-gray-500">{bar.label}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="mt-8 grid grid-cols-4 gap-4">
-                    <Link href="/scans/new" className="cyber-card p-4 hover:border-cyber-accent/50 transition-colors group">
-                        <Plus className="w-6 h-6 text-cyber-accent group-hover:scale-110 transition-transform" />
-                        <div className="mt-2 font-medium text-white">New Scan</div>
-                        <div className="text-sm text-gray-400">Start a new security scan</div>
-                    </Link>
-
-                    <Link href="/reports" className="cyber-card p-4 hover:border-cyber-accent/50 transition-colors group">
-                        <Download className="w-6 h-6 text-cyber-accent group-hover:scale-110 transition-transform" />
-                        <div className="mt-2 font-medium text-white">Export Report</div>
-                        <div className="text-sm text-gray-400">Download PDF/HTML report</div>
-                    </Link>
-
-                    <Link href="/settings" className="cyber-card p-4 hover:border-cyber-accent/50 transition-colors group">
-                        <TrendingUp className="w-6 h-6 text-cyber-accent group-hover:scale-110 transition-transform" />
-                        <div className="mt-2 font-medium text-white">Analytics</div>
-                        <div className="text-sm text-gray-400">View security trends</div>
-                    </Link>
-
-                    <Link href="/integrations" className="cyber-card p-4 hover:border-cyber-accent/50 transition-colors group">
-                        <Activity className="w-6 h-6 text-cyber-accent group-hover:scale-110 transition-transform" />
-                        <div className="mt-2 font-medium text-white">Integrations</div>
-                        <div className="text-sm text-gray-400">CI/CD & webhook setup</div>
-                    </Link>
-                </div>
-            </main>
-        </div>
+                </main>
+            </div >
+        </ProtectedRoute >
     );
 }

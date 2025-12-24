@@ -81,7 +81,7 @@ Respond ONLY in valid JSON format with this structure:
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://github.com/khanj/Matrix", # Example referer
-                    "X-Title": "CyberMatrix Security"
+                    "X-Title": "Matrix Security"
                 }
                 
                 payload = {

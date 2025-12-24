@@ -66,7 +66,7 @@ class XSSAgent(BaseSecurityAgent):
     ]
     
     # Unique marker for reflection detection
-    REFLECTION_MARKER = "CYBERMATRIX_XSS_TEST_"
+    REFLECTION_MARKER = "MATRIX_XSS_TEST_"
     
     # DOM XSS sink patterns
     DOM_SINKS = [
