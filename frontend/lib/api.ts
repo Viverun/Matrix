@@ -229,6 +229,24 @@ export interface Vulnerability {
     is_false_positive: boolean;
     is_verified: boolean;
     is_fixed: boolean;
+    is_suppressed: boolean;
+    suppression_reason?: string;
+
+    // Final Verdict Layer
+    final_verdict?: string;
+    action_required: boolean;
+    detection_confidence: number;
+    exploit_confidence: number;
+
+    // Scope & Impact
+    scope_impact?: {
+        affected_endpoints: number;
+        affected_methods: string[];
+        is_systemic: boolean;
+        summary: string;
+        description?: string;
+    };
+
     detected_by?: string;
     detected_at: string;
     scan_id: number;

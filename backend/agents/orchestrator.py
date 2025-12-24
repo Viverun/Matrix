@@ -385,7 +385,14 @@ class AgentOrchestrator:
             # Step 4: Apply exploitability gates (downgrade if gates fail)
             self.results = self._apply_exploitability_gates(self.results)
             
-            # Step 4: Deduplicate and sort
+            # Step 5: Calculate Final Verdicts & Split Confidence
+            # This must happen after gates/correlation
+            self.results = self._calculate_verdicts(self.results)
+            
+            # Step 6: Calculate Scope & Systemic Impact
+            self.results = self._calculate_scope_impact(self.results)
+            
+            # Step 7: Deduplicate and sort
             await self._update_progress(92, "Deduplicating results...")
             self.results = self._deduplicate_results_similarity(self.results)
             self.results.sort(key=lambda x: (
@@ -1044,8 +1051,10 @@ class AgentOrchestrator:
             "medium": 0,
             "low": 0,
             "info": 0,
+            "suppressed_count": 0,
             "by_type": {},
             "by_agent": {},
+            "by_verdict": {},
             "failed_agents": self.failed_agents,
             "scan_context_summary": {}
         }
@@ -1054,6 +1063,14 @@ class AgentOrchestrator:
             # Count by severity
             severity_key = result.severity.value
             summary[severity_key] = summary.get(severity_key, 0) + 1
+            
+            # Count suppression
+            if result.is_suppressed:
+                summary["suppressed_count"] += 1
+                
+            # Count by verdict
+            if result.final_verdict:
+                summary["by_verdict"][result.final_verdict] = summary["by_verdict"].get(result.final_verdict, 0) + 1
             
             # Count by type
             type_key = result.vulnerability_type.value
@@ -1123,85 +1140,145 @@ class AgentOrchestrator:
     def _filter_false_positives(self, results: List[AgentResult]) -> List[AgentResult]:
         """
         Filter out or mark false positive findings based on AI analysis signals.
-        
-        False Positive Signals:
-        1. AI explicitly marked is_vulnerable: false
-        2. Confidence score < 30 (very low confidence)
-        3. Analysis contains false positive keywords
-        4. Evidence is placeholder text (YOUR_API_KEY_HERE, example, etc.)
-        
-        Args:
-            results: List of findings to filter
-            
-        Returns:
-            Filtered results with false positives removed or marked
         """
-        filtered_results = []
-        
         false_positive_keywords = [
-            "not vulnerable",
-            "false positive", 
-            "placeholder",
-            "example value",
-            "your_api_key_here",
-            "xxx-xxx",
-            "not exploitable",
-            "properly encoded",
-            "correctly sanitized"
+            "not vulnerable", "false positive", "placeholder", "example value",
+            "your_api_key_here", "xxx-xxx", "not exploitable", "properly encoded",
+            "correctly sanitized", "no sensitive data is present"
         ]
         
         placeholder_patterns = [
-            r"YOUR_.*_HERE",
-            r"EXAMPLE_.*",
-            r"\*\*\*\*",
-            r"xxxx",
-            r"<YOUR.*>",
-            r"\[INSERT.*\]"
+            r"YOUR_.*_HERE", r"EXAMPLE_.*", r"\*\*\*\*", r"xxxx", r"<YOUR.*>", r"\[INSERT.*\]"
         ]
         
         for result in results:
             is_false_positive = False
             fp_reason = None
             
-            # Check 1: Very low confidence (AI unsure)
+            # Check 1: Very low confidence
             if result.confidence < 30:
                 is_false_positive = True
-                fp_reason = f"Very low confidence ({result.confidence}%) indicates insufficient evidence"
+                fp_reason = "Low confidence indicates insufficient evidence"
             
             # Check 2: False positive keywords in analysis
-            analysis_lower = result.ai_analysis.lower()
+            analysis_lower = (result.ai_analysis or "").lower()
             for keyword in false_positive_keywords:
                 if keyword in analysis_lower:
                     is_false_positive = True
-                    fp_reason = f"AI analysis indicates '{keyword}'"
+                    fp_reason = f"AI Analysis confirms: {keyword}"
                     break
             
-            # Check 3: Evidence contains placeholder patterns
+            # Check 3: Placeholder patterns
             evidence_text = (result.evidence or "").upper()
             for pattern in placeholder_patterns:
                 if re.search(pattern, evidence_text, re.IGNORECASE):
                     is_false_positive = True
-                    fp_reason = f"Evidence contains placeholder pattern"
+                    fp_reason = "Evidence contains placeholder patterns"
                     break
             
-            # Check 4: Missing header findings with no actual security impact
-            if result.vulnerability_type in [VulnerabilityType.SECURITY_MISCONFIGURATION]:
-                # These are valid LOW findings, not false positives
-                # Just ensure they're properly classified
+            # Check 4: Security Misconfig Calibration
+            if result.vulnerability_type == VulnerabilityType.SECURITY_MISCONFIG:
                 if result.severity in [Severity.HIGH, Severity.CRITICAL]:
                     result.severity = Severity.LOW
-                    result.ai_analysis += "\n\n[Calibration] Security configuration findings are LOW severity unless proven exploitable."
+                    result.ai_analysis += "\n\n[Calibration] Security configuration findings are LOW severity (Best Practices) unless proven exploitable."
             
             if is_false_positive:
-                print(f"[Orchestrator] Filtered false positive: '{result.title}' - {fp_reason}")
-                # Instead of removing, mark as INFO with explanation
+                result.is_suppressed = True
+                result.is_false_positive = True
+                result.suppression_reason = fp_reason
+                result.final_verdict = "FALSE_POSITIVE"
+                result.action_required = False
                 result.severity = Severity.INFO
-                result.confidence = min(result.confidence, 25)
-                result.ai_analysis += f"\n\n[False Positive Filter] This finding was flagged as potential false positive: {fp_reason}. Manual verification recommended."
+                result.exploit_confidence = 0.0
+                print(f"[Orchestrator] Suppressed false positive: '{result.title}' - {fp_reason}")
+                
+        return results
+
+    def _calculate_verdicts(self, results: List[AgentResult]) -> List[AgentResult]:
+        """
+        Calculate final verdicts and split confidence metrics.
+        """
+        for result in results:
+            if result.is_suppressed:
+                continue
+                
+            # split confidence metrics
+            result.detection_confidence = result.confidence
             
-            filtered_results.append(result)
-        
-        return filtered_results
+            # Determine Exploit Confidence based on severity and evidence
+            if result.severity == Severity.CRITICAL:
+                result.exploit_confidence = 90.0
+            elif result.severity == Severity.HIGH:
+                result.exploit_confidence = 70.0
+            elif result.severity == Severity.MEDIUM:
+                result.exploit_confidence = 40.0
+            elif result.severity == Severity.LOW:
+                result.exploit_confidence = 10.0
+            else:
+                result.exploit_confidence = 0.0
+                
+            # Special case for headers
+            if result.vulnerability_type == VulnerabilityType.SECURITY_MISCONFIG and "header" in result.title.lower():
+                result.exploit_confidence = 0.0
+                result.final_verdict = "DEFENSE_IN_DEPTH"
+                result.action_required = True
+                result.exploitability_rationale = "This finding represents a defense-in-depth hardening opportunity. It is not directly exploitable and does not indicate a security breach."
+            elif result.vulnerability_type == VulnerabilityType.SENSITIVE_DATA:
+                if result.confidence < 70:
+                    result.final_verdict = "ACTION_REQUIRED"
+                    result.action_required = True
+                    result.exploitability_rationale = "Pattern-only match for sensitive data. Contextual confirmation required to ensure this is not a false positive or placeholder."
+                    if result.severity in [Severity.HIGH, Severity.CRITICAL]:
+                        result.severity = Severity.MEDIUM
+                else:
+                    result.final_verdict = "CONFIRMED_VULNERABILITY"
+                    result.action_required = True
+            else:
+                if result.severity in [Severity.HIGH, Severity.CRITICAL]:
+                    result.final_verdict = "CONFIRMED_VULNERABILITY"
+                    result.action_required = True
+                elif result.severity == Severity.MEDIUM:
+                    result.final_verdict = "ACTION_REQUIRED"
+                    result.action_required = True
+                else:
+                    result.final_verdict = "BEST_PRACTICE"
+                    result.action_required = True
+                    
+            # Apply final verdict logic
+            if "[Exploitability Gate] Severity adjusted" in result.ai_analysis:
+                result.exploit_confidence = max(0, result.exploit_confidence - 30)
+                
+        return results
+
+    def _calculate_scope_impact(self, results: List[AgentResult]) -> List[AgentResult]:
+        """
+        Calculate scope and systemic impact for findings.
+        """
+        # Group by type to find systemic issues
+        by_type = {}
+        for r in results:
+            if r.vulnerability_type not in by_type:
+                by_type[r.vulnerability_type] = []
+            by_type[r.vulnerability_type].append(r)
+            
+        for r in results:
+            similar = by_type.get(r.vulnerability_type, [])
+            unique_endpoints = len(set(s.url for s in similar))
+            unique_methods = list(set(s.method for s in similar))
+            
+            is_systemic = unique_endpoints > 2
+            
+            r.scope_impact = {
+                "affected_endpoints": unique_endpoints,
+                "affected_methods": unique_methods,
+                "is_systemic": is_systemic,
+                "summary": f"Affected Endpoints: {unique_endpoints} | Systemic: {'Yes' if is_systemic else 'No'}"
+            }
+            
+            if is_systemic and r.vulnerability_type == VulnerabilityType.SECURITY_MISCONFIG:
+                r.scope_impact["description"] = "Global Policy Issue"
+                
+        return results
     
     def _apply_exploitability_gates(self, results: List[AgentResult]) -> List[AgentResult]:
         """

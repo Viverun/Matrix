@@ -110,8 +110,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         
         # Cross-Origin policies for additional isolation
+        # 'cross-origin' allows CORS-enabled requests from other origins
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
         
         return response
 

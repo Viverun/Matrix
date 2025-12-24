@@ -81,6 +81,20 @@ class AgentResult:
     
     # Evidence Chain (optional)
     evidence_chain_id: Optional[str] = None
+    
+    # Final Verdict Layer
+    final_verdict: Optional[str] = None
+    action_required: bool = True
+    detection_confidence: float = 0.0
+    exploit_confidence: float = 0.0
+    
+    # Status
+    is_suppressed: bool = False
+    is_false_positive: bool = False
+    suppression_reason: Optional[str] = None
+    
+    # Scope & Impact
+    scope_impact: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -105,6 +119,14 @@ class AgentResult:
             "likelihood": self.likelihood,
             "impact": self.impact,
             "exploitability_rationale": self.exploitability_rationale,
+            "final_verdict": self.final_verdict,
+            "action_required": self.action_required,
+            "detection_confidence": self.detection_confidence,
+            "exploit_confidence": self.exploit_confidence,
+            "is_suppressed": self.is_suppressed,
+            "is_false_positive": self.is_false_positive,
+            "suppression_reason": self.suppression_reason,
+            "scope_impact": self.scope_impact,
         }
 
 
