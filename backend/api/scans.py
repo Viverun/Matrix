@@ -1,20 +1,36 @@
 """
 Scan management API routes.
+
+Scans are executed asynchronously using a distributed worker queue (RQ + Redis).
+Falls back to FastAPI BackgroundTasks if Redis is unavailable.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.database import get_db
+from core.logger import get_logger
 from models.user import User
 from models.scan import Scan, ScanStatus
 from models.vulnerability import Vulnerability, Severity
 from schemas.scan import ScanCreate, ScanResponse, ScanListResponse
-from schemas.scan import ScanCreate, ScanResponse, ScanListResponse
 from api.deps import get_current_user
-from workers import run_scan_task
+
+# Initialize logger
+logger = get_logger(__name__)
+
+# Try to import RQ, fall back to legacy worker if unavailable
+try:
+    from rq_tasks import enqueue_scan, get_job_status
+    RQ_AVAILABLE = True
+    logger.info("RQ task queue available - using distributed workers")
+except ImportError:
+    RQ_AVAILABLE = False
+    from workers import run_scan_task
+    logger.warning("RQ not available - falling back to BackgroundTasks")
+
 
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
@@ -26,7 +42,12 @@ async def create_scan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new security scan."""
+    """
+    Create a new security scan.
+    
+    Scans are queued for asynchronous execution via the RQ worker queue.
+    Falls back to FastAPI BackgroundTasks if Redis is unavailable.
+    """
     # Normalize target URL - strip whitespace and ensure scheme
     target_url = scan_data.target_url.strip()
     if not target_url.startswith(("http://", "https://")):
@@ -46,10 +67,24 @@ async def create_scan(
     await db.commit()
     await db.refresh(new_scan)
     
-    # Start scan in background
-    background_tasks.add_task(run_scan_task, new_scan.id)
+    logger.info(f"Scan {new_scan.id} created for target: {target_url}")
+    
+    # Queue scan for execution
+    if RQ_AVAILABLE:
+        job_id = enqueue_scan(new_scan.id)
+        if job_id:
+            logger.info(f"Scan {new_scan.id} enqueued with job ID: {job_id}")
+        else:
+            # Fallback if enqueue fails
+            logger.warning(f"RQ enqueue failed for scan {new_scan.id}, using BackgroundTasks")
+            background_tasks.add_task(run_scan_task, new_scan.id)
+    else:
+        # Fallback to BackgroundTasks
+        background_tasks.add_task(run_scan_task, new_scan.id)
+        logger.info(f"Scan {new_scan.id} queued via BackgroundTasks (fallback)")
     
     return ScanResponse.model_validate(new_scan)
+
 
 
 @router.get("/", response_model=ScanListResponse)
@@ -162,17 +197,29 @@ async def start_scan(
     
     # Update status
     scan.status = ScanStatus.RUNNING
-    scan.started_at = datetime.utcnow()
+    scan.started_at = datetime.now(timezone.utc)
     scan.progress = 0
     scan.error_message = None
     
     await db.commit()
     await db.refresh(scan)
     
-    # Start actual scan in background
-    background_tasks.add_task(run_scan_task, scan.id)
+    logger.info(f"Starting scan {scan_id} for target: {scan.target_url}")
+    
+    # Queue scan for execution
+    if RQ_AVAILABLE:
+        job_id = enqueue_scan(scan.id)
+        if job_id:
+            logger.info(f"Scan {scan.id} enqueued with job ID: {job_id}")
+        else:
+            logger.warning(f"RQ enqueue failed for scan {scan.id}, using BackgroundTasks")
+            background_tasks.add_task(run_scan_task, scan.id)
+    else:
+        background_tasks.add_task(run_scan_task, scan.id)
+        logger.info(f"Scan {scan.id} queued via BackgroundTasks (fallback)")
     
     return ScanResponse.model_validate(scan)
+
 
 
 @router.post("/{scan_id}/cancel", response_model=ScanResponse)
@@ -200,7 +247,7 @@ async def cancel_scan(
         )
     
     scan.status = ScanStatus.CANCELLED
-    scan.completed_at = datetime.utcnow()
+    scan.completed_at = datetime.now(timezone.utc)
     
     await db.commit()
     await db.refresh(scan)

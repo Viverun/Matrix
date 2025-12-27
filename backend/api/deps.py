@@ -1,5 +1,7 @@
 """
 Authentication dependencies.
+
+Provides FastAPI dependencies for user authentication and authorization.
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -9,7 +11,10 @@ from typing import Optional
 
 from core.database import get_db
 from core.security import decode_token
+from core.logger import get_logger
 from models.user import User
+
+logger = get_logger(__name__)
 
 security = HTTPBearer()
 
@@ -27,47 +32,64 @@ async def get_current_user(
     
     token = credentials.credentials
     
-    # DEBUG BYPASS for verification
-    if token == "debug-token":
-        # Return a mock user object that satisfies the dependency
-        return User(
-            id=1, 
-            email="tester@matrix.local", 
-            username="tester", 
-            is_active=True,
-            is_admin=True
-        )
-
     try:
         payload = decode_token(token)
-        print(f"[AUTH DEBUG] Decoded payload: {payload}")
+        logger.debug("Token decoded successfully")
     except Exception as e:
-        print(f"[AUTH DEBUG] Token decode exception: {e}")
-        raise HTTPException(status_code=401, detail=f"Token decode failed: {e}")
+        logger.warning(f"Token decode failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format"
+        )
     
     if payload is None:
-        print(f"[AUTH DEBUG] Payload is None - token invalid or expired")
-        print(f"[AUTH DEBUG] Token preview: {token[:50] if len(token) > 50 else token}...")
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        logger.warning("Token validation failed - invalid or expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
     
     user_id = payload.get("sub")
     if user_id is None:
-        raise HTTPException(status_code=401, detail="Token missing subject (sub)")
+        logger.warning("Token missing subject claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims"
+        )
     
     # Get user from database
     try:
         user_db_id = int(user_id)
         result = await db.execute(select(User).where(User.id == user_db_id))
         user = result.scalar_one_or_none()
+    except ValueError:
+        logger.error(f"Invalid user ID format in token: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error during auth: {e}")
+        logger.error(f"Database error during authentication: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service unavailable"
+        )
     
     if user is None:
-        raise HTTPException(status_code=401, detail=f"User {user_id} not found")
+        logger.warning(f"User not found: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
     
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Inactive user")
+        logger.warning(f"Inactive user attempted access: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive"
+        )
     
+    logger.debug(f"User authenticated: {user.username}")
     return user
 
 
@@ -105,5 +127,6 @@ async def get_optional_user(
         user_db_id = int(user_id)
         result = await db.execute(select(User).where(User.id == user_db_id))
         return result.scalar_one_or_none()
-    except:
+    except Exception:
         return None
+

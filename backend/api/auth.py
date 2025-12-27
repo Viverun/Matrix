@@ -1,12 +1,17 @@
 """
 Authentication API routes.
+
+Handles user registration, login, and profile management.
 """
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
 
 from core.database import get_db
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 from core.security import verify_password, get_password_hash, create_access_token
 from models.user import User
 from schemas.auth import UserCreate, UserLogin, UserResponse, Token
@@ -18,9 +23,12 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     """Register a new user."""
+    logger.info(f"Registration attempt for email: {user_data.email}")
+    
     # Check if email already exists
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
+        logger.warning(f"Registration failed - email already exists: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -29,6 +37,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     # Check if username already exists
     result = await db.execute(select(User).where(User.username == user_data.username))
     if result.scalar_one_or_none():
+        logger.warning(f"Registration failed - username taken: {user_data.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already taken"
@@ -48,6 +57,8 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_user)
     
+    logger.info(f"User registered successfully: {new_user.username} (ID: {new_user.id})")
+    
     # Generate access token
     access_token = create_access_token(data={"sub": str(new_user.id)})
     
@@ -60,11 +71,14 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """Login with email and password."""
+    logger.info(f"Login attempt for email: {credentials.email}")
+    
     # Find user by email
     result = await db.execute(select(User).where(User.email == credentials.email))
     user = result.scalar_one_or_none()
     
     if not user or not verify_password(credentials.password, user.hashed_password):
+        logger.warning(f"Login failed - invalid credentials for: {credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -72,14 +86,17 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         )
     
     if not user.is_active:
+        logger.warning(f"Login failed - inactive account: {credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive"
         )
     
-    # Update last login
-    user.last_login = datetime.utcnow()
+    # Update last login with timezone-aware datetime
+    user.last_login = datetime.now(timezone.utc)
     await db.commit()
+    
+    logger.info(f"User logged in successfully: {user.username} (ID: {user.id})")
     
     # Generate access token
     access_token = create_access_token(data={"sub": str(user.id)})

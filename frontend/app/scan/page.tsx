@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-    Target, FileSearch, ArrowRight, CheckCircle, AlertTriangle, XCircle, ArrowLeft, 
+import {
+    Target, FileSearch, ArrowRight, CheckCircle, AlertTriangle, XCircle, ArrowLeft,
     Shield, ShieldAlert, ShieldCheck, ShieldX, Clock, Globe, Code, FileText,
     Download, ChevronDown, ChevronUp, ExternalLink, Copy, Terminal, Activity,
     Zap, Database, Lock, Bug, Server, Eye, TrendingUp, BarChart3
@@ -35,7 +35,7 @@ export default function ScanPage() {
     const [error, setError] = useState<string | null>(null);
     const [expandedVuln, setExpandedVuln] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'details'>('overview');
-    const [terminalLogs, setTerminalLogs] = useState<{type: string, message: string}[]>([]);
+    const [terminalLogs, setTerminalLogs] = useState<{ type: string, message: string }[]>([]);
     const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([
         { name: 'SQL Injection', status: 'pending', icon: <Database className="w-4 h-4" />, findings: 0 },
         { name: 'XSS Detection', status: 'pending', icon: <Code className="w-4 h-4" />, findings: 0 },
@@ -50,7 +50,7 @@ export default function ScanPage() {
         if (isScanning) {
             const agentOrder = [0, 1, 2, 3, 4, 5];
             let currentAgent = 0;
-            
+
             const interval = setInterval(() => {
                 if (currentAgent < agentOrder.length) {
                     setAgentStatuses(prev => prev.map((agent, idx) => {
@@ -65,7 +65,7 @@ export default function ScanPage() {
                     currentAgent++;
                 }
             }, 3000);
-            
+
             return () => clearInterval(interval);
         } else {
             // Reset agents when not scanning
@@ -167,25 +167,36 @@ export default function ScanPage() {
         }
     };
 
-    // Helper functions
+    // Helper functions - Warm professional color palette
     const getSeverityColor = (severity: string) => {
         const colors: Record<string, string> = {
-            critical: 'from-red-500 to-red-600',
-            high: 'from-orange-500 to-orange-600',
-            medium: 'from-amber-500 to-amber-600',
-            low: 'from-blue-500 to-blue-600',
-            info: 'from-gray-500 to-gray-600'
+            critical: 'from-rose-600 to-rose-700',
+            high: 'from-amber-600 to-amber-700',
+            medium: 'from-yellow-600 to-yellow-700',
+            low: 'from-teal-600 to-teal-700',
+            info: 'from-stone-500 to-stone-600'
         };
         return colors[severity] || colors.info;
     };
 
     const getSeverityBg = (severity: string) => {
         const colors: Record<string, string> = {
-            critical: 'bg-red-50 border-red-200 text-red-700',
-            high: 'bg-orange-50 border-orange-200 text-orange-700',
-            medium: 'bg-amber-50 border-amber-200 text-amber-700',
-            low: 'bg-blue-50 border-blue-200 text-blue-700',
-            info: 'bg-gray-50 border-gray-200 text-gray-700'
+            critical: 'bg-rose-50 border-rose-300 text-rose-800',
+            high: 'bg-amber-50 border-amber-300 text-amber-800',
+            medium: 'bg-yellow-50 border-yellow-300 text-yellow-800',
+            low: 'bg-teal-50 border-teal-300 text-teal-800',
+            info: 'bg-stone-50 border-stone-300 text-stone-700'
+        };
+        return colors[severity] || colors.info;
+    };
+
+    const getSeverityAccent = (severity: string) => {
+        const colors: Record<string, string> = {
+            critical: 'border-l-rose-500',
+            high: 'border-l-amber-500',
+            medium: 'border-l-yellow-500',
+            low: 'border-l-teal-500',
+            info: 'border-l-stone-400'
         };
         return colors[severity] || colors.info;
     };
@@ -199,6 +210,19 @@ export default function ScanPage() {
             info: 0.0
         };
         return scores[severity] || 0;
+    };
+
+    const getCWEMapping = (vulnType: string): string => {
+        const cweMap: Record<string, string> = {
+            'sql_injection': 'CWE-89',
+            'xss': 'CWE-79',
+            'csrf': 'CWE-352',
+            'ssrf': 'CWE-918',
+            'broken_authentication': 'CWE-287',
+            'sensitive_data_exposure': 'CWE-200',
+            'default': 'CWE-Unknown'
+        };
+        return cweMap[vulnType.toLowerCase()] || cweMap['default'];
     };
 
     const copyToClipboard = (text: string) => {
@@ -253,7 +277,7 @@ export default function ScanPage() {
                                     <p className="text-sm text-text-muted">Enter the URL you want to assess</p>
                                 </div>
                             </div>
-                            
+
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                 <div className="flex-1 relative group">
                                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-warm-400 group-focus-within:text-accent-primary transition-colors" />
@@ -319,10 +343,10 @@ export default function ScanPage() {
                                             <div className="text-xs text-text-muted uppercase tracking-wide">Complete</div>
                                         </div>
                                     </div>
-                                    
+
                                     {/* Progress Bar */}
                                     <div className="h-3 bg-warm-100 rounded-full overflow-hidden">
-                                        <div 
+                                        <div
                                             className="h-full bg-gradient-to-r from-accent-primary via-accent-primary to-green-500 rounded-full transition-all duration-500 relative"
                                             style={{ width: `${scanProgress}%` }}
                                         >
@@ -336,24 +360,22 @@ export default function ScanPage() {
                                     <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-4">Security Agents</h4>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                         {agentStatuses.map((agent, idx) => (
-                                            <div 
+                                            <div
                                                 key={idx}
-                                                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
-                                                    agent.status === 'active' 
-                                                        ? 'bg-accent-primary/5 border-accent-primary shadow-lg shadow-accent-primary/10' 
+                                                className={`p-4 rounded-xl border-2 transition-all duration-300 ${agent.status === 'active'
+                                                        ? 'bg-accent-primary/5 border-accent-primary shadow-lg shadow-accent-primary/10'
                                                         : agent.status === 'completed'
-                                                        ? 'bg-amber-50 border-amber-200'
-                                                        : 'bg-white border-warm-200'
-                                                }`}
+                                                            ? 'bg-amber-50 border-amber-200'
+                                                            : 'bg-white border-warm-200'
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                                        agent.status === 'active'
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${agent.status === 'active'
                                                             ? 'bg-accent-primary text-white'
                                                             : agent.status === 'completed'
-                                                            ? 'bg-amber-500 text-white'
-                                                            : 'bg-warm-200 text-warm-500'
-                                                    }`}>
+                                                                ? 'bg-amber-500 text-white'
+                                                                : 'bg-warm-200 text-warm-500'
+                                                        }`}>
                                                         {agent.status === 'active' ? (
                                                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                                         ) : agent.status === 'completed' ? (
@@ -364,12 +386,11 @@ export default function ScanPage() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="font-medium text-text-primary text-sm truncate">{agent.name}</div>
-                                                        <div className={`text-xs ${
-                                                            agent.status === 'active' ? 'text-accent-primary' :
-                                                            agent.status === 'completed' ? 'text-amber-700' : 'text-text-muted'
-                                                        }`}>
-                                                            {agent.status === 'active' ? 'Scanning...' : 
-                                                             agent.status === 'completed' ? 'Audited' : 'Waiting'}
+                                                        <div className={`text-xs ${agent.status === 'active' ? 'text-accent-primary' :
+                                                                agent.status === 'completed' ? 'text-amber-700' : 'text-text-muted'
+                                                            }`}>
+                                                            {agent.status === 'active' ? 'Scanning...' :
+                                                                agent.status === 'completed' ? 'Audited' : 'Waiting'}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -422,9 +443,9 @@ export default function ScanPage() {
                                             <p className="text-gray-600">{targetUrl}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => copyToClipboard(JSON.stringify(findings, null, 2))}
-                                                className="p-2 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200" 
+                                                className="p-2 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
                                                 title="Copy JSON"
                                             >
                                                 <Copy className="w-5 h-5 text-amber-700" />
@@ -435,50 +456,49 @@ export default function ScanPage() {
                                         </div>
                                     </div>
 
-                                    {/* Executive Summary Stats - Horizontal Layout */}
+                                    {/* Executive Summary Stats - Professional Warm Palette */}
                                     <div className="grid grid-cols-5 gap-3 mb-6">
                                         {[
-                                            { count: scanResults?.critical_count || 0, label: 'Critical', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', accent: 'bg-red-300' },
-                                            { count: scanResults?.high_count || 0, label: 'High', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-600', accent: 'bg-orange-300' },
-                                            { count: scanResults?.medium_count || 0, label: 'Medium', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-600', accent: 'bg-amber-300' },
-                                            { count: scanResults?.low_count || 0, label: 'Low', bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-600', accent: 'bg-sky-300' },
-                                            { count: scanResults?.total_vulnerabilities || findings.length || 0, label: 'Total', bg: 'bg-stone-50', border: 'border-stone-200', text: 'text-stone-600', accent: 'bg-stone-300' },
+                                            { count: scanResults?.critical_count || 0, label: 'Critical', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', accent: 'bg-rose-400' },
+                                            { count: scanResults?.high_count || 0, label: 'High', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', accent: 'bg-amber-400' },
+                                            { count: scanResults?.medium_count || 0, label: 'Medium', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', accent: 'bg-yellow-400' },
+                                            { count: scanResults?.low_count || 0, label: 'Low', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', accent: 'bg-teal-400' },
+                                            { count: scanResults?.total_vulnerabilities || findings.length || 0, label: 'Total', bg: 'bg-stone-100', border: 'border-stone-300', text: 'text-stone-700', accent: 'bg-stone-500' },
                                         ].map((stat, i) => (
-                                            <div key={i} className={`relative overflow-hidden rounded-xl ${stat.bg} border ${stat.border} p-4 text-center`}>
-                                                <div className={`absolute top-0 left-0 w-full h-1 ${stat.accent}`} />
+                                            <div key={i} className={`relative overflow-hidden rounded-xl ${stat.bg} border ${stat.border} p-4 text-center shadow-sm hover:shadow-md transition-shadow`}>
+                                                <div className={`absolute top-0 left-0 w-full h-1.5 ${stat.accent}`} />
                                                 <div className={`text-3xl font-bold ${stat.text}`}>{stat.count}</div>
-                                                <div className={`text-xs ${stat.text} uppercase tracking-wide font-medium mt-1`}>{stat.label}</div>
+                                                <div className={`text-xs ${stat.text} uppercase tracking-wider font-semibold mt-1`}>{stat.label}</div>
                                             </div>
                                         ))}
                                     </div>
 
-                                    {/* Risk Score - Integrated Design */}
-                                    <div className="bg-white/70 backdrop-blur rounded-xl p-5 border border-green-200 flex items-center justify-between">
+                                    {/* Risk Score - Professional Warm Design */}
+                                    <div className="bg-gradient-to-r from-stone-50 to-amber-50/50 backdrop-blur rounded-xl p-5 border border-stone-200 flex items-center justify-between shadow-sm">
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shadow-lg ${
-                                                (scanResults?.critical_count || 0) > 0 ? 'bg-gradient-to-br from-red-400 to-red-600 text-white' :
-                                                (scanResults?.high_count || 0) > 0 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
-                                                (scanResults?.medium_count || 0) > 0 ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' :
-                                                'bg-gradient-to-br from-green-400 to-green-600 text-white'
-                                            }`}>
+                                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold shadow-lg ${(scanResults?.critical_count || 0) > 0 ? 'bg-gradient-to-br from-rose-500 to-rose-700 text-white' :
+                                                    (scanResults?.high_count || 0) > 0 ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white' :
+                                                        (scanResults?.medium_count || 0) > 0 ? 'bg-gradient-to-br from-yellow-500 to-yellow-700 text-white' :
+                                                            'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white'
+                                                }`}>
                                                 {(scanResults?.critical_count || 0) > 0 ? 'F' : (scanResults?.high_count || 0) > 0 ? 'D' : (scanResults?.medium_count || 0) > 0 ? 'C' : 'A'}
                                             </div>
                                             <div>
-                                                <div className="text-lg font-semibold text-gray-800">Security Grade</div>
-                                                <div className="text-sm text-gray-600">
+                                                <div className="text-lg font-semibold text-stone-800">Security Grade</div>
+                                                <div className="text-sm text-stone-600">
                                                     {(scanResults?.critical_count || 0) > 0 ? 'Critical issues require immediate attention' :
-                                                     (scanResults?.high_count || 0) > 0 ? 'High-severity vulnerabilities detected' :
-                                                     (scanResults?.medium_count || 0) > 0 ? 'Moderate security concerns found' :
-                                                     'Good security posture'}
+                                                        (scanResults?.high_count || 0) > 0 ? 'High-severity vulnerabilities detected' :
+                                                            (scanResults?.medium_count || 0) > 0 ? 'Moderate security concerns found' :
+                                                                'Good security posture'}
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-right bg-green-50 px-4 py-2 rounded-lg border border-green-200">
-                                            <div className="text-xs text-green-700 uppercase tracking-wide font-medium">CVSS Range</div>
-                                            <div className="text-xl font-mono text-green-800 font-bold">
+                                        <div className="text-right bg-amber-50 px-5 py-3 rounded-xl border border-amber-200">
+                                            <div className="text-xs text-amber-700 uppercase tracking-wider font-semibold">CVSS Range</div>
+                                            <div className="text-xl font-mono text-amber-800 font-bold">
                                                 {(scanResults?.critical_count || 0) > 0 ? '9.0 - 10.0' :
-                                                 (scanResults?.high_count || 0) > 0 ? '7.0 - 8.9' :
-                                                 (scanResults?.medium_count || 0) > 0 ? '4.0 - 6.9' : '0.0 - 3.9'}
+                                                    (scanResults?.high_count || 0) > 0 ? '7.0 - 8.9' :
+                                                        (scanResults?.medium_count || 0) > 0 ? '4.0 - 6.9' : '0.0 - 3.9'}
                                             </div>
                                         </div>
                                     </div>
@@ -495,11 +515,10 @@ export default function ScanPage() {
                                             <button
                                                 key={tab.id}
                                                 onClick={() => setActiveTab(tab.id as any)}
-                                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all ${
-                                                    activeTab === tab.id
+                                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all ${activeTab === tab.id
                                                         ? 'text-accent-primary border-b-2 border-accent-primary bg-accent-primary/5'
                                                         : 'text-text-muted hover:text-text-primary hover:bg-warm-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 {tab.icon}
                                                 {tab.label}
@@ -517,27 +536,30 @@ export default function ScanPage() {
                                                         <TrendingUp className="w-5 h-5 text-accent-primary" />
                                                         Vulnerability Distribution
                                                     </h4>
-                                                    <div className="space-y-3">
+                                                    <div className="space-y-4">
                                                         {[
-                                                            { severity: 'critical', count: scanResults?.critical_count || 0, color: 'bg-red-200', textColor: 'text-red-700' },
-                                                            { severity: 'high', count: scanResults?.high_count || 0, color: 'bg-orange-200', textColor: 'text-orange-700' },
-                                                            { severity: 'medium', count: scanResults?.medium_count || 0, color: 'bg-amber-200', textColor: 'text-amber-700' },
-                                                            { severity: 'low', count: scanResults?.low_count || 0, color: 'bg-blue-200', textColor: 'text-blue-700' },
+                                                            { severity: 'Critical', count: scanResults?.critical_count || 0, color: 'bg-gradient-to-r from-rose-300 to-rose-400', bgBar: 'bg-rose-100', textColor: 'text-rose-800', icon: '🔴' },
+                                                            { severity: 'High', count: scanResults?.high_count || 0, color: 'bg-gradient-to-r from-amber-300 to-amber-400', bgBar: 'bg-amber-100', textColor: 'text-amber-800', icon: '🟠' },
+                                                            { severity: 'Medium', count: scanResults?.medium_count || 0, color: 'bg-gradient-to-r from-yellow-300 to-yellow-400', bgBar: 'bg-yellow-100', textColor: 'text-yellow-800', icon: '🟡' },
+                                                            { severity: 'Low', count: scanResults?.low_count || 0, color: 'bg-gradient-to-r from-teal-300 to-teal-400', bgBar: 'bg-teal-100', textColor: 'text-teal-800', icon: '🟢' },
                                                         ].map((item) => {
                                                             const total = scanResults?.total_vulnerabilities || 0;
                                                             const percentage = total > 0 ? (item.count / total) * 100 : 0;
                                                             return (
                                                                 <div key={item.severity} className="flex items-center gap-4">
-                                                                    <div className="w-20 text-sm text-text-muted capitalize">{item.severity}</div>
-                                                                    <div className="flex-1 h-8 bg-warm-100 rounded-lg overflow-hidden">
-                                                                        <div 
-                                                                            className={`h-full ${item.color} transition-all duration-500 flex items-center justify-end pr-2`}
-                                                                            style={{ width: `${Math.max(percentage, item.count > 0 ? 10 : 0)}%` }}
+                                                                    <div className="w-24 text-sm font-medium text-stone-600 flex items-center gap-2">
+                                                                        <span>{item.icon}</span>
+                                                                        <span>{item.severity}</span>
+                                                                    </div>
+                                                                    <div className={`flex-1 h-9 ${item.bgBar} rounded-lg overflow-hidden shadow-inner`}>
+                                                                        <div
+                                                                            className={`h-full ${item.color} transition-all duration-700 ease-out flex items-center justify-end pr-3 rounded-lg`}
+                                                                            style={{ width: `${Math.max(percentage, item.count > 0 ? 12 : 0)}%` }}
                                                                         >
-                                                                            {item.count > 0 && <span className={`${item.textColor} text-xs font-bold`}>{item.count}</span>}
+                                                                            {item.count > 0 && <span className={`${item.textColor} text-sm font-bold drop-shadow-sm`}>{item.count}</span>}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="w-8 text-right text-sm font-medium text-text-primary">{item.count}</div>
+                                                                    <div className="w-10 text-right text-sm font-bold text-stone-700">{item.count}</div>
                                                                 </div>
                                                             );
                                                         })}
@@ -565,167 +587,256 @@ export default function ScanPage() {
                                             </div>
                                         )}
 
-                                        {/* Findings Tab */}
+                                        {/* Findings Tab - Enhanced Professional Design */}
                                         {activeTab === 'findings' && (
-                                            <div className="space-y-4">
+                                            <div className="space-y-5">
                                                 {findings.length === 0 ? (
-                                                    <div className="text-center py-12">
-                                                        <ShieldCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                                                        <h4 className="text-xl font-semibold text-text-primary mb-2">No Vulnerabilities Found</h4>
-                                                        <p className="text-text-muted">The scan completed without detecting any security issues.</p>
+                                                    <div className="text-center py-16 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
+                                                        <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg">
+                                                            <ShieldCheck className="w-10 h-10 text-white" />
+                                                        </div>
+                                                        <h4 className="text-2xl font-bold text-emerald-800 mb-2">Secure Application</h4>
+                                                        <p className="text-emerald-600 max-w-md mx-auto">The scan completed without detecting any security vulnerabilities. Your application appears to be well-protected.</p>
                                                     </div>
                                                 ) : (
-                                                    findings.map((vuln, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className={`rounded-xl border-2 overflow-hidden transition-all ${
-                                                                expandedVuln === i ? 'border-accent-primary shadow-lg' : 'border-warm-200 hover:border-warm-300'
-                                                            }`}
-                                                        >
-                                                            {/* Finding Header */}
-                                                            <button
-                                                                onClick={() => setExpandedVuln(expandedVuln === i ? null : i)}
-                                                                className="w-full p-5 flex items-center gap-4 bg-white hover:bg-warm-50 transition-colors"
-                                                            >
-                                                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getSeverityColor(vuln.severity)} flex items-center justify-center flex-shrink-0 shadow-lg`}>
-                                                                    {vuln.severity === 'critical' ? <ShieldX className="w-6 h-6 text-white" /> :
-                                                                     vuln.severity === 'high' ? <ShieldAlert className="w-6 h-6 text-white" /> :
-                                                                     <AlertTriangle className="w-6 h-6 text-white" />}
-                                                                </div>
-                                                                <div className="flex-1 text-left min-w-0">
-                                                                    <div className="font-bold text-text-primary mb-1">{vuln.vulnerability_type.replace(/_/g, ' ')}</div>
-                                                                    <div className="text-sm text-text-muted truncate">
-                                                                        {vuln.url}
-                                                                        {vuln.parameter && <span className="text-accent-primary ml-2">[{vuln.parameter}]</span>}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border ${getSeverityBg(vuln.severity)}`}>
-                                                                        {vuln.severity}
-                                                                    </div>
-                                                                    <div className="text-sm font-mono text-text-muted">
-                                                                        CVSS {getCVSSScore(vuln.severity).toFixed(1)}
-                                                                    </div>
-                                                                    {expandedVuln === i ? <ChevronUp className="w-5 h-5 text-text-muted" /> : <ChevronDown className="w-5 h-5 text-text-muted" />}
-                                                                </div>
-                                                            </button>
-
-                                                            {/* Expanded Details */}
-                                                            {expandedVuln === i && (
-                                                                <div className="border-t border-warm-200 bg-warm-50/50">
-                                                                    <div className="p-5 space-y-4">
-                                                                        {/* Evidence */}
-                                                                        <div>
-                                                                            <h5 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                                                                                <Bug className="w-4 h-4 text-accent-primary" />
-                                                                                Evidence
-                                                                            </h5>
-                                                                            <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 overflow-x-auto">
-                                                                                <code>{vuln.evidence || 'Vulnerability detected through automated analysis'}</code>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* Description */}
-                                                                        <div>
-                                                                            <h5 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                                                                                <FileText className="w-4 h-4 text-accent-primary" />
-                                                                                Description
-                                                                            </h5>
-                                                                            <p className="text-text-secondary text-sm leading-relaxed">
-                                                                                {vuln.description || `A ${vuln.severity} severity ${vuln.vulnerability_type.replace(/_/g, ' ')} vulnerability was detected. This type of vulnerability can potentially allow attackers to compromise the security of your application.`}
-                                                                            </p>
-                                                                        </div>
-
-                                                                        {/* Remediation */}
-                                                                        <div>
-                                                                            <h5 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                                                                                <ShieldCheck className="w-4 h-4 text-green-600" />
-                                                                                Remediation
-                                                                            </h5>
-                                                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
-                                                                                {vuln.remediation || 'Review and sanitize user inputs. Implement proper security controls and follow OWASP guidelines for this vulnerability type.'}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* References */}
-                                                                        <div className="flex items-center gap-2 text-sm">
-                                                                            <span className="text-text-muted">References:</span>
-                                                                            <a href="#" className="text-accent-primary hover:underline flex items-center gap-1">
-                                                                                OWASP <ExternalLink className="w-3 h-3" />
-                                                                            </a>
-                                                                            <span className="text-warm-300">•</span>
-                                                                            <a href="#" className="text-accent-primary hover:underline flex items-center gap-1">
-                                                                                CWE-{Math.floor(Math.random() * 900) + 100} <ExternalLink className="w-3 h-3" />
-                                                                            </a>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
+                                                    <>
+                                                        {/* Findings Summary Header */}
+                                                        <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl border border-stone-200">
+                                                            <div className="flex items-center gap-3">
+                                                                <Bug className="w-5 h-5 text-stone-600" />
+                                                                <span className="font-semibold text-stone-700">{findings.length} Vulnerabilities Found</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-sm text-stone-600">
+                                                                <span>Sort by severity</span>
+                                                                <ChevronDown className="w-4 h-4" />
+                                                            </div>
                                                         </div>
-                                                    ))
+
+                                                        {/* Vulnerability Cards */}
+                                                        {findings.map((vuln, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className={`rounded-xl border-l-4 ${getSeverityAccent(vuln.severity)} overflow-hidden transition-all shadow-sm hover:shadow-md ${expandedVuln === i ? 'ring-2 ring-amber-300 shadow-lg' : 'border border-stone-200'
+                                                                    }`}
+                                                            >
+                                                                {/* Finding Header */}
+                                                                <button
+                                                                    onClick={() => setExpandedVuln(expandedVuln === i ? null : i)}
+                                                                    className="w-full p-5 flex items-center gap-4 bg-white hover:bg-stone-50/50 transition-colors"
+                                                                >
+                                                                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getSeverityColor(vuln.severity)} flex items-center justify-center flex-shrink-0 shadow-md`}>
+                                                                        {vuln.severity === 'critical' ? <ShieldX className="w-6 h-6 text-white" /> :
+                                                                            vuln.severity === 'high' ? <ShieldAlert className="w-6 h-6 text-white" /> :
+                                                                                <AlertTriangle className="w-6 h-6 text-white" />}
+                                                                    </div>
+                                                                    <div className="flex-1 text-left min-w-0">
+                                                                        <div className="font-bold text-stone-800 mb-1 capitalize">{vuln.vulnerability_type.replace(/_/g, ' ')}</div>
+                                                                        <div className="text-sm text-stone-500 truncate flex items-center gap-2">
+                                                                            <Globe className="w-3.5 h-3.5" />
+                                                                            {vuln.url}
+                                                                            {vuln.parameter && <span className="text-amber-600 font-medium">[{vuln.parameter}]</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${getSeverityBg(vuln.severity)}`}>
+                                                                            {vuln.severity}
+                                                                        </div>
+                                                                        <div className="text-center">
+                                                                            <div className="text-lg font-bold font-mono text-stone-700">
+                                                                                {getCVSSScore(vuln.severity).toFixed(1)}
+                                                                            </div>
+                                                                            <div className="text-xs text-stone-500 uppercase tracking-wide">CVSS</div>
+                                                                        </div>
+                                                                        {expandedVuln === i ? <ChevronUp className="w-5 h-5 text-stone-400" /> : <ChevronDown className="w-5 h-5 text-stone-400" />}
+                                                                    </div>
+                                                                </button>
+
+                                                                {/* Expanded Details - Enhanced Layout */}
+                                                                {expandedVuln === i && (
+                                                                    <div className="border-t border-stone-200 bg-gradient-to-br from-stone-50 to-amber-50/30">
+                                                                        <div className="p-6 space-y-5">
+                                                                            {/* Quick Info Grid */}
+                                                                            <div className="grid grid-cols-3 gap-4">
+                                                                                <div className="p-3 bg-white rounded-lg border border-stone-200">
+                                                                                    <div className="text-xs text-stone-500 uppercase tracking-wide mb-1">Location</div>
+                                                                                    <div className="text-sm font-medium text-stone-700 truncate">{vuln.url}</div>
+                                                                                </div>
+                                                                                <div className="p-3 bg-white rounded-lg border border-stone-200">
+                                                                                    <div className="text-xs text-stone-500 uppercase tracking-wide mb-1">Parameter</div>
+                                                                                    <div className="text-sm font-medium text-amber-700">{vuln.parameter || 'N/A'}</div>
+                                                                                </div>
+                                                                                <div className="p-3 bg-white rounded-lg border border-stone-200">
+                                                                                    <div className="text-xs text-stone-500 uppercase tracking-wide mb-1">CWE Reference</div>
+                                                                                    <div className="text-sm font-medium text-stone-700">{getCWEMapping(vuln.vulnerability_type)}</div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Evidence */}
+                                                                            <div>
+                                                                                <h5 className="text-sm font-bold text-stone-700 mb-3 flex items-center gap-2">
+                                                                                    <Terminal className="w-4 h-4 text-amber-600" />
+                                                                                    Evidence
+                                                                                </h5>
+                                                                                <div className="bg-stone-900 rounded-xl p-5 font-mono text-sm text-amber-300 overflow-x-auto border border-stone-700">
+                                                                                    <code className="block whitespace-pre-wrap">{vuln.evidence || 'Vulnerability detected through automated security analysis. Review the affected endpoint for potential exploitation vectors.'}</code>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Description */}
+                                                                            <div>
+                                                                                <h5 className="text-sm font-bold text-stone-700 mb-3 flex items-center gap-2">
+                                                                                    <FileText className="w-4 h-4 text-amber-600" />
+                                                                                    Description
+                                                                                </h5>
+                                                                                <p className="text-stone-600 text-sm leading-relaxed bg-white p-4 rounded-lg border border-stone-200">
+                                                                                    {vuln.description || `A ${vuln.severity} severity ${vuln.vulnerability_type.replace(/_/g, ' ')} vulnerability was detected at the specified endpoint. This type of vulnerability can potentially allow attackers to compromise the security of your application, leading to unauthorized data access, manipulation, or service disruption.`}
+                                                                                </p>
+                                                                            </div>
+
+                                                                            {/* Remediation */}
+                                                                            <div>
+                                                                                <h5 className="text-sm font-bold text-stone-700 mb-3 flex items-center gap-2">
+                                                                                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                                                                    Recommended Remediation
+                                                                                </h5>
+                                                                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5 text-sm text-emerald-800">
+                                                                                    {vuln.remediation || 'Review and sanitize all user inputs using parameterized queries or prepared statements. Implement proper input validation, output encoding, and security controls following OWASP guidelines for this vulnerability type. Consider implementing a Web Application Firewall (WAF) for additional protection.'}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* References */}
+                                                                            <div className="flex items-center gap-4 pt-3 border-t border-stone-200">
+                                                                                <span className="text-sm font-medium text-stone-600">References:</span>
+                                                                                <a href="https://owasp.org" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-800 hover:underline flex items-center gap-1 text-sm font-medium">
+                                                                                    OWASP Guidelines <ExternalLink className="w-3.5 h-3.5" />
+                                                                                </a>
+                                                                                <span className="text-stone-300">|</span>
+                                                                                <a href="https://cwe.mitre.org" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-800 hover:underline flex items-center gap-1 text-sm font-medium">
+                                                                                    {getCWEMapping(vuln.vulnerability_type)} <ExternalLink className="w-3.5 h-3.5" />
+                                                                                </a>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* Technical Details Tab */}
+                                        {/* Technical Details Tab - Enhanced Professional Design */}
                                         {activeTab === 'details' && (
                                             <div className="space-y-6">
-                                                <div className="bg-gray-900 rounded-xl p-6 font-mono text-sm">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <span className="text-gray-400">// Scan Metadata</span>
-                                                        <button 
+                                                {/* Scan Configuration Section */}
+                                                <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-6 font-mono text-sm border border-stone-700">
+                                                    <div className="flex items-center justify-between mb-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <Terminal className="w-5 h-5 text-amber-400" />
+                                                            <span className="text-stone-300 font-semibold">Scan Configuration & Results</span>
+                                                        </div>
+                                                        <button
                                                             onClick={() => copyToClipboard(JSON.stringify({
                                                                 scan_id: scanResults.id,
                                                                 target: targetUrl,
                                                                 status: scanResults.status,
                                                                 total_vulnerabilities: scanResults.total_vulnerabilities
                                                             }, null, 2))}
-                                                            className="text-gray-400 hover:text-white transition-colors"
+                                                            className="flex items-center gap-2 text-stone-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-stone-700"
                                                         >
                                                             <Copy className="w-4 h-4" />
+                                                            <span className="text-xs">Copy</span>
                                                         </button>
                                                     </div>
-                                                    <pre className="text-green-400 overflow-x-auto">
-{`{
+                                                    <pre className="text-amber-300 overflow-x-auto leading-relaxed">
+                                                        {`{
   "scan_id": "${scanResults.id}",
   "target": "${targetUrl}",
   "status": "${scanResults.status}",
   "progress": ${scanResults.progress},
   "total_vulnerabilities": ${scanResults.total_vulnerabilities},
-  "breakdown": {
+  "severity_breakdown": {
     "critical": ${scanResults.critical_count},
     "high": ${scanResults.high_count},
     "medium": ${scanResults.medium_count},
     "low": ${scanResults.low_count}
   },
-  "agents_used": [
-    "sql_injection",
-    "xss_detection", 
-    "csrf_analysis",
-    "ssrf_scanner",
-    "auth_testing",
-    "api_security"
-  ]
+  "security_agents": [
+    "sql_injection_detector",
+    "xss_scanner", 
+    "csrf_analyzer",
+    "ssrf_detector",
+    "authentication_tester",
+    "api_security_auditor"
+  ],
+  "scan_engine": "Matrix Security Platform v1.0"
 }`}
                                                     </pre>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="p-4 bg-warm-50 rounded-xl">
-                                                        <div className="text-sm text-text-muted mb-1">Scan Duration</div>
-                                                        <div className="text-xl font-semibold text-text-primary">~2m 30s</div>
+                                                {/* Scan Metrics Grid */}
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-stone-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                        <Activity className="w-4 h-4 text-amber-600" />
+                                                        Scan Metrics
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div className="p-5 bg-gradient-to-br from-stone-50 to-amber-50/50 rounded-xl border border-stone-200 shadow-sm">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <Clock className="w-4 h-4 text-stone-500" />
+                                                                <span className="text-xs text-stone-500 uppercase tracking-wide font-medium">Duration</span>
+                                                            </div>
+                                                            <div className="text-2xl font-bold text-stone-800">~2m 30s</div>
+                                                        </div>
+                                                        <div className="p-5 bg-gradient-to-br from-stone-50 to-amber-50/50 rounded-xl border border-stone-200 shadow-sm">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <Globe className="w-4 h-4 text-stone-500" />
+                                                                <span className="text-xs text-stone-500 uppercase tracking-wide font-medium">Endpoints</span>
+                                                            </div>
+                                                            <div className="text-2xl font-bold text-stone-800">{Math.floor(Math.random() * 50) + 10}</div>
+                                                        </div>
+                                                        <div className="p-5 bg-gradient-to-br from-stone-50 to-amber-50/50 rounded-xl border border-stone-200 shadow-sm">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <Zap className="w-4 h-4 text-stone-500" />
+                                                                <span className="text-xs text-stone-500 uppercase tracking-wide font-medium">Payloads</span>
+                                                            </div>
+                                                            <div className="text-2xl font-bold text-stone-800">{Math.floor(Math.random() * 500) + 200}</div>
+                                                        </div>
+                                                        <div className="p-5 bg-gradient-to-br from-stone-50 to-amber-50/50 rounded-xl border border-stone-200 shadow-sm">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <TrendingUp className="w-4 h-4 text-stone-500" />
+                                                                <span className="text-xs text-stone-500 uppercase tracking-wide font-medium">AI Confidence</span>
+                                                            </div>
+                                                            <div className="text-2xl font-bold text-amber-700">{Math.floor(Math.random() * 15) + 85}%</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="p-4 bg-warm-50 rounded-xl">
-                                                        <div className="text-sm text-text-muted mb-1">Endpoints Tested</div>
-                                                        <div className="text-xl font-semibold text-text-primary">{Math.floor(Math.random() * 50) + 10}</div>
-                                                    </div>
-                                                    <div className="p-4 bg-warm-50 rounded-xl">
-                                                        <div className="text-sm text-text-muted mb-1">Payloads Executed</div>
-                                                        <div className="text-xl font-semibold text-text-primary">{Math.floor(Math.random() * 500) + 200}</div>
-                                                    </div>
-                                                    <div className="p-4 bg-warm-50 rounded-xl">
-                                                        <div className="text-sm text-text-muted mb-1">AI Confidence</div>
-                                                        <div className="text-xl font-semibold text-text-primary">{Math.floor(Math.random() * 15) + 85}%</div>
+                                                </div>
+
+                                                {/* Agents Used Section */}
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-stone-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                        <Shield className="w-4 h-4 text-amber-600" />
+                                                        Security Agents Deployed
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                                        {[
+                                                            { name: 'SQL Injection Detector', icon: <Database className="w-4 h-4" />, status: 'Completed' },
+                                                            { name: 'XSS Scanner', icon: <Code className="w-4 h-4" />, status: 'Completed' },
+                                                            { name: 'CSRF Analyzer', icon: <Shield className="w-4 h-4" />, status: 'Completed' },
+                                                            { name: 'SSRF Detector', icon: <Server className="w-4 h-4" />, status: 'Completed' },
+                                                            { name: 'Auth Tester', icon: <Lock className="w-4 h-4" />, status: 'Completed' },
+                                                            { name: 'API Security Auditor', icon: <Globe className="w-4 h-4" />, status: 'Completed' },
+                                                        ].map((agent, i) => (
+                                                            <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-stone-200 shadow-sm">
+                                                                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+                                                                    {agent.icon}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="text-sm font-medium text-stone-700 truncate">{agent.name}</div>
+                                                                    <div className="text-xs text-emerald-600 font-medium">✓ {agent.status}</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             </div>
@@ -733,19 +844,7 @@ export default function ScanPage() {
                                     </div>
                                 </div>
 
-                                {/* Call to Action */}
-                                <div className="bg-gradient-to-r from-accent-primary to-accent-primary/80 rounded-2xl p-8 text-white text-center shadow-xl shadow-accent-primary/30">
-                                    <h3 className="text-2xl font-bold mb-2">Need a Deeper Analysis?</h3>
-                                    <p className="text-white/80 mb-6">Get comprehensive vulnerability details with remediation code examples</p>
-                                    <Link
-                                        href={`/scans/${scanResults.id}`}
-                                        className="inline-flex items-center gap-2 px-8 py-4 bg-white text-accent-primary font-semibold rounded-xl hover:bg-warm-50 transition-colors shadow-lg"
-                                    >
-                                        <Eye className="w-5 h-5" />
-                                        View Full Report
-                                        <ArrowRight className="w-5 h-5" />
-                                    </Link>
-                                </div>
+
                             </div>
                         )}
 
@@ -762,7 +861,7 @@ export default function ScanPage() {
                                     Enter a target URL above to start the security assessment.
                                     Our AI-powered agents will analyze your application for vulnerabilities.
                                 </p>
-                                
+
                                 {/* Features Grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
                                     {[

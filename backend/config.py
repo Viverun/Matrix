@@ -14,15 +14,19 @@ class Settings(BaseSettings):
     
     # AI
     groq_api_key: str = ""
-    openrouter_api_key: str = ""
+    huggingface_api_key_ii: str = ""
     
     # LLM Cost Optimization
     enable_llm_cache: bool = True
     llm_cache_ttl_hours: int = 24
-    openrouter_rpm_limit: int = 10  # Requests per minute
+    huggingface_ii_rpm_limit: int = 10  # Requests per minute
     groq_rpm_limit: int = 30  # Requests per minute
+    huggingface_rpm_limit: int = 5 # Requests per minute
     
-    # Database
+    # Hugging Face
+    huggingface_api_key: str = ""
+    huggingface_model_id: str = "Trendyol/Trendyol-Cybersecurity-LLM-v2-70B-Q4_K_M" # Default model
+    
     # Database
     database_url: str = "sqlite+aiosqlite:///./matrix.db"
     
