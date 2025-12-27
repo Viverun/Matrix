@@ -13,3 +13,10 @@ Thumbs.db
 # Environment variables (secrets)
 .env
 backend/.env
+
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+
