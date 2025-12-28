@@ -136,18 +136,17 @@ The developer trusts you to guide them to a more secure codebase. Be their secur
         # Build messages with recent history
         messages = self._build_messages()
         
-        # Try Hugging Face II first, then fallback to Hugging Face
-        response = await self._try_hf_ii(messages)
+        # Try Groq AI
+        response, error = await self._try_groq(messages)
         if response:
             return response
-            
-        # response = await self._try_huggingface(messages)
-        # if response:
-        #    return response
         
-        # Both providers failed
-        error_msg = "Error: Both Hugging Face II and Hugging Face AI providers are unavailable or unconfigured."
-        logger.error("All AI providers failed")
+        # Provider failed
+        if error:
+            error_msg = f"AI Error: {error}"
+        else:
+            error_msg = "Error: AI provider is unavailable or unconfigured. Please check your Groq API key."
+        logger.error(f"AI provider failed: {error}")
         return error_msg
     
     def _build_messages(self) -> List[Dict[str, str]]:
@@ -162,13 +161,14 @@ The developer trusts you to guide them to a more secure codebase. Be their secur
         messages.extend(self.conversation_history[-self.MAX_CONVERSATION_HISTORY:])
         return messages
     
-    async def _try_hf_ii(self, messages: List[Dict[str, str]]) -> Optional[str]:
+    async def _try_groq(self, messages: List[Dict[str, str]]) -> tuple[Optional[str], Optional[str]]:
         """
         Attempt to get a response from Groq (via chatbot key).
+        Returns (content, error) tuple.
         """
         if not self.client.is_configured:
             logger.debug("Groq Client not configured, skipping")
-            return None
+            return None, "Groq client not configured"
         
         try:
             logger.info(f"Attempting Groq chat with model: {self.model}")
@@ -188,14 +188,14 @@ The developer trusts you to guide them to a more secure codebase. Be their secur
                     "content": content
                 })
                 logger.info("Groq chat request successful")
-                return content
+                return content, None
             
             logger.warning("Groq chat returned no content")
-            return None
+            return None, "AI returned empty response"
             
         except Exception as e:
             logger.error(f"Groq chat error: {str(e)}", exc_info=True)
-            return None
+            return None, str(e)
     
     # Hugging Face fallback removed
     

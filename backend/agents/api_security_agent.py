@@ -173,6 +173,14 @@ class APISecurityAgent(BaseSecurityAgent):
         if cors_result:
             results.append(cors_result)
 
+        # Check cookie security (API8: Security Misconfiguration)
+        cookie_issues = await self._check_cookie_security(target_url)
+        results.extend(cookie_issues)
+
+        # Check SSL/TLS configuration
+        ssl_issues = await self._check_ssl_security(target_url)
+        results.extend(ssl_issues)
+
         # Check for old API versions (API9: Improper Inventory Management)
         old_version_issues = await self._check_old_api_versions(target_url)
         results.extend(old_version_issues)
@@ -206,7 +214,7 @@ class APISecurityAgent(BaseSecurityAgent):
             url = urljoin(base_url, clean_path)
 
             try:
-                response = await self.make_request(url, timeout=APITestConfig.DISCOVERY_TIMEOUT)
+                response = await self.make_request(url)
                 if response and response.status_code in [200, 201, 401, 403]:
                     endpoints.append({
                         "url": url,
@@ -665,7 +673,7 @@ class APISecurityAgent(BaseSecurityAgent):
 
             try:
                 # Try accessing without authentication
-                response = await self.make_request(url, timeout=APITestConfig.DISCOVERY_TIMEOUT)
+                response = await self.make_request(url)
 
                 if response and response.status_code == 200:
                     results.append(self.create_result(
@@ -937,7 +945,7 @@ class APISecurityAgent(BaseSecurityAgent):
             url = urljoin(target_url, path)
 
             try:
-                response = await self.make_request(url, timeout=APITestConfig.DISCOVERY_TIMEOUT)
+                response = await self.make_request(url)
 
                 if response and response.status_code == 200:
                     has_sensitive = any(
@@ -1076,3 +1084,130 @@ class APISecurityAgent(BaseSecurityAgent):
             logger.error(f"[API Agent] CORS test error for {url}: {e}")
 
         return None
+    async def _check_cookie_security(self, url: str) -> List[AgentResult]:
+        """Check for insecure cookie configurations."""
+        results = []
+        try:
+            response = await self.make_request(url)
+            if not response:
+                return results
+
+            cookie_header = response.headers.get("set-cookie", "")
+            if not cookie_header:
+                return results
+
+            cookies = [cookie_header]
+            for cookie in cookies:
+                cookie_lower = cookie.lower()
+                cookie_name = cookie.split("=")[0].strip() if "=" in cookie else "Unknown"
+                is_session = any(kw in cookie_lower for kw in ["session", "token", "auth", "jwt", "sid"])
+
+                if "httponly" not in cookie_lower:
+                    severity = Severity.MEDIUM if is_session else Severity.LOW
+                    results.append(self.create_result(
+                        vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                        is_vulnerable=True, severity=severity, confidence=95, url=url,
+                        title=f"Cookie Missing HttpOnly Flag: {cookie_name}",
+                        description=f"Cookie '{cookie_name}' can be accessed by JavaScript. XSS attacks could steal this cookie.",
+                        evidence=f"Set-Cookie: {cookie[:80]}...",
+                        likelihood=6.0 if is_session else 4.0,
+                        impact=7.0 if is_session else 3.0,
+                        remediation="Add 'HttpOnly' flag to prevent JavaScript access to sensitive cookies.",
+                        owasp_category="API8:2023 - Security Misconfiguration",
+                        cwe_id="CWE-1004"
+                    ))
+
+                if "secure" not in cookie_lower and url.startswith("https"):
+                    severity = Severity.MEDIUM if is_session else Severity.LOW
+                    results.append(self.create_result(
+                        vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                        is_vulnerable=True, severity=severity, confidence=95, url=url,
+                        title=f"Cookie Missing Secure Flag: {cookie_name}",
+                        description=f"Cookie '{cookie_name}' can be sent over unencrypted HTTP. MITM attacks could intercept this cookie.",
+                        evidence=f"Set-Cookie: {cookie[:80]}...",
+                        likelihood=5.0, impact=6.0 if is_session else 3.0,
+                        remediation="Add 'Secure' flag to ensure cookie is only sent over HTTPS.",
+                        owasp_category="API8:2023 - Security Misconfiguration",
+                        cwe_id="CWE-614"
+                    ))
+
+                if "samesite" not in cookie_lower:
+                    results.append(self.create_result(
+                        vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                        is_vulnerable=True, severity=Severity.LOW, confidence=90, url=url,
+                        title=f"Cookie Missing SameSite Attribute: {cookie_name}",
+                        description=f"Cookie '{cookie_name}' has no SameSite attribute. May be vulnerable to CSRF attacks.",
+                        evidence=f"Set-Cookie: {cookie[:80]}...",
+                        likelihood=4.0, impact=5.0 if is_session else 2.0,
+                        remediation="Add 'SameSite=Strict' or 'SameSite=Lax' attribute.",
+                        owasp_category="API8:2023 - Security Misconfiguration",
+                        cwe_id="CWE-1275"
+                    ))
+
+            if cookies:
+                logger.info(f"[API Agent] Checked {len(cookies)} cookies for security issues")
+        except Exception as e:
+            logger.error(f"[API Agent] Cookie check error for {url}: {e}")
+        return results
+
+    async def _check_ssl_security(self, url: str) -> List[AgentResult]:
+        """Check SSL/TLS security configuration."""
+        results = []
+        parsed = urlparse(url)
+        try:
+            if parsed.scheme == "https":
+                http_url = url.replace("https://", "http://")
+                try:
+                    response = await self.make_request(http_url)
+                    if response and response.status_code == 200:
+                        results.append(self.create_result(
+                            vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                            is_vulnerable=True, severity=Severity.MEDIUM, confidence=95, url=url,
+                            title="Site Accessible Over HTTP (No HTTPS Redirect)",
+                            description="Site content is available over unencrypted HTTP. Sensitive data could be intercepted.",
+                            evidence="HTTP 200 OK - No redirect to HTTPS",
+                            likelihood=7.0, impact=6.0,
+                            remediation="Implement HTTP to HTTPS redirect for all pages.",
+                            owasp_category="API8:2023 - Security Misconfiguration",
+                            cwe_id="CWE-319"
+                        ))
+                except Exception:
+                    pass
+
+            response = await self.make_request(url)
+            if response:
+                hsts = response.headers.get("strict-transport-security", "")
+                if hsts:
+                    max_age_match = re.search(r"max-age=(\d+)", hsts)
+                    if max_age_match:
+                        max_age = int(max_age_match.group(1))
+                        if max_age < 31536000:
+                            results.append(self.create_result(
+                                vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                                is_vulnerable=True, severity=Severity.LOW, confidence=90, url=url,
+                                title="HSTS Max-Age Too Short",
+                                description=f"HSTS max-age is {max_age} seconds. Recommended minimum: 31536000 (1 year).",
+                                evidence=f"Strict-Transport-Security: {hsts}",
+                                likelihood=3.0, impact=4.0,
+                                remediation="Set HSTS max-age to at least 31536000 seconds (1 year).",
+                                owasp_category="API8:2023 - Security Misconfiguration",
+                                cwe_id="CWE-523"
+                            ))
+
+                    if "includesubdomains" not in hsts.lower():
+                        results.append(self.create_result(
+                            vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
+                            is_vulnerable=True, severity=Severity.INFO, confidence=85, url=url,
+                            title="HSTS Missing includeSubDomains",
+                            description="HSTS does not include subdomains. Subdomains may be vulnerable to downgrade attacks.",
+                            evidence=f"Strict-Transport-Security: {hsts}",
+                            likelihood=2.0, impact=3.0,
+                            remediation="Add 'includeSubDomains' directive to HSTS header.",
+                            owasp_category="API8:2023 - Security Misconfiguration",
+                            cwe_id="CWE-523"
+                        ))
+
+            logger.info(f"[API Agent] Completed SSL/TLS security checks for {url}")
+        except Exception as e:
+            logger.error(f"[API Agent] SSL check error for {url}: {e}")
+        return results

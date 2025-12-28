@@ -205,7 +205,24 @@ export default function ScanDetailPage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <button className="px-5 py-2.5 bg-white border border-warm-200 rounded-xl text-text-primary text-sm font-bold uppercase tracking-widest hover:border-accent-primary/30 transition-all flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    const exportData = {
+                                        scan: scan,
+                                        findings: findings,
+                                        exportedAt: new Date().toISOString(),
+                                        version: '1.0'
+                                    };
+                                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `Matrix_Scan_${scan.id}_${new Date().toISOString().split('T')[0]}.json`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                }}
+                                className="px-5 py-2.5 bg-white border border-warm-200 rounded-xl text-text-primary text-sm font-bold uppercase tracking-widest hover:border-accent-primary/30 transition-all flex items-center gap-2"
+                            >
                                 <Download className="w-4 h-4" />
                                 Export JSON
                             </button>
@@ -252,15 +269,15 @@ export default function ScanDetailPage() {
                                             <div
                                                 key={agent}
                                                 className={`p-4 rounded-xl border transition-all ${status === 'scanning'
-                                                        ? 'bg-accent-primary/10 border-accent-primary animate-pulse'
-                                                        : status === 'audited'
-                                                            ? 'bg-green-50 border-green-200'
-                                                            : 'bg-warm-50 border-warm-200'
+                                                    ? 'bg-accent-primary/10 border-accent-primary animate-pulse'
+                                                    : status === 'audited'
+                                                        ? 'bg-green-50 border-green-200'
+                                                        : 'bg-warm-50 border-warm-200'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${status === 'scanning' ? 'bg-accent-primary/20' :
-                                                            status === 'audited' ? 'bg-green-100' : 'bg-warm-100'
+                                                        status === 'audited' ? 'bg-green-100' : 'bg-warm-100'
                                                         }`}>
                                                         {status === 'audited' ? (
                                                             <CheckCircle className="w-4 h-4 text-green-600" />
@@ -273,7 +290,7 @@ export default function ScanDetailPage() {
                                                     <div>
                                                         <div className="font-medium text-sm text-text-primary">{info.name}</div>
                                                         <div className={`text-xs capitalize ${status === 'scanning' ? 'text-accent-primary' :
-                                                                status === 'audited' ? 'text-green-600' : 'text-warm-400'
+                                                            status === 'audited' ? 'text-green-600' : 'text-warm-400'
                                                             }`}>
                                                             {status === 'scanning' ? 'Scanning...' : status === 'audited' ? 'Audited' : 'Waiting'}
                                                         </div>
@@ -294,10 +311,10 @@ export default function ScanDetailPage() {
                                 <div className="bg-gray-900 rounded-xl p-4 font-mono text-sm max-h-48 overflow-y-auto">
                                     {terminalLines.map((line, i) => (
                                         <div key={i} className={`${line.startsWith('[OK]') ? 'text-green-400' :
-                                                line.startsWith('[SCAN]') ? 'text-yellow-400' :
-                                                    line.startsWith('[INFO]') ? 'text-blue-400' :
-                                                        line.startsWith('$') ? 'text-accent-primary' :
-                                                            'text-gray-300'
+                                            line.startsWith('[SCAN]') ? 'text-yellow-400' :
+                                                line.startsWith('[INFO]') ? 'text-blue-400' :
+                                                    line.startsWith('$') ? 'text-accent-primary' :
+                                                        'text-gray-300'
                                             }`}>
                                             {line}
                                         </div>

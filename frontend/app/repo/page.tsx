@@ -135,7 +135,7 @@ export default function RepoAnalysisPage() {
                         // Calculate Top Vulnerable Files
                         const fileCountMap: Record<string, { issues: number, severity: string }> = {};
                         findings.forEach(f => {
-                            const path = f.file_path || 'unknown';
+                            const path = f.file_path || 'Security Headers / Config';
                             if (!fileCountMap[path]) {
                                 fileCountMap[path] = { issues: 0, severity: f.severity };
                             }

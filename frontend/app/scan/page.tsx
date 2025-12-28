@@ -12,7 +12,7 @@ import { SpiderWeb } from '../../components/SpiderWeb';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
 import { api, Scan, Vulnerability } from '../../lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Navbar } from '../../components/Navbar';
 
@@ -27,6 +27,7 @@ interface AgentStatus {
 export default function ScanPage() {
     const { user, logout, isAuthenticated } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [targetUrl, setTargetUrl] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
@@ -44,6 +45,29 @@ export default function ScanPage() {
         { name: 'Auth Testing', status: 'pending', icon: <Lock className="w-4 h-4" />, findings: 0 },
         { name: 'API Security', status: 'pending', icon: <Globe className="w-4 h-4" />, findings: 0 },
     ]);
+
+    // Load scan from URL on page mount
+    useEffect(() => {
+        const scanId = searchParams.get('id');
+        if (scanId) {
+            const loadScan = async () => {
+                try {
+                    const scanData = await api.getScan(Number(scanId));
+                    setScanResults(scanData);
+                    setTargetUrl(scanData.target_url);
+                    setScanProgress(scanData.progress);
+                    if (scanData.status === 'completed') {
+                        const results = await api.getVulnerabilities(Number(scanId));
+                        setFindings(results.items);
+                        setAgentStatuses(prev => prev.map(agent => ({ ...agent, status: 'completed' })));
+                    }
+                } catch (err) {
+                    console.error('Failed to load scan from URL:', err);
+                }
+            };
+            loadScan();
+        }
+    }, [searchParams]);
 
     // Simulate agent progress during scan
     // Use real agent status from scan results
@@ -129,6 +153,8 @@ export default function ScanPage() {
                         setFindings(results.items);
                         addLog('success', `Scan complete! Found ${results.total} vulnerabilities`);
                         addLog('info', `Critical: ${statusUpdate.critical_count} | High: ${statusUpdate.high_count} | Medium: ${statusUpdate.medium_count} | Low: ${statusUpdate.low_count}`);
+                        // Update URL so refreshing preserves results
+                        router.push(`/scan?id=${newScan.id}`, { scroll: false });
                     } else if (statusUpdate.status === 'failed' || statusUpdate.status === 'cancelled') {
                         clearInterval(interval);
                         setIsScanning(false);
@@ -555,12 +581,35 @@ export default function ScanPage() {
 
                                                 {/* Quick Actions */}
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                    <button className="p-4 bg-warm-50 rounded-xl border border-warm-200 hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all text-left group">
+                                                    <button
+                                                        onClick={() => {
+                                                            // Navigate to scan details page which has PDF export
+                                                            router.push(`/scans/${scanResults.id}`);
+                                                        }}
+                                                        className="p-4 bg-warm-50 rounded-xl border border-warm-200 hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all text-left group"
+                                                    >
                                                         <FileText className="w-8 h-8 text-accent-primary mb-2 group-hover:scale-110 transition-transform" />
                                                         <div className="font-semibold text-text-primary">Export PDF</div>
                                                         <div className="text-sm text-text-muted">Download full report</div>
                                                     </button>
-                                                    <button className="p-4 bg-warm-50 rounded-xl border border-warm-200 hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all text-left group">
+                                                    <button
+                                                        onClick={() => {
+                                                            const exportData = {
+                                                                scan: scanResults,
+                                                                findings: findings,
+                                                                exportedAt: new Date().toISOString(),
+                                                                version: '1.0'
+                                                            };
+                                                            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url;
+                                                            a.download = `Matrix_Scan_${scanResults.id}_${new Date().toISOString().split('T')[0]}.json`;
+                                                            a.click();
+                                                            URL.revokeObjectURL(url);
+                                                        }}
+                                                        className="p-4 bg-warm-50 rounded-xl border border-warm-200 hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all text-left group"
+                                                    >
                                                         <Code className="w-8 h-8 text-accent-primary mb-2 group-hover:scale-110 transition-transform" />
                                                         <div className="font-semibold text-text-primary">Export JSON</div>
                                                         <div className="text-sm text-text-muted">Machine-readable format</div>
@@ -850,12 +899,16 @@ export default function ScanPage() {
                                 </p>
 
                                 {/* Features Grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
                                     {[
                                         { icon: <Database className="w-5 h-5" />, label: 'SQL Injection' },
                                         { icon: <Code className="w-5 h-5" />, label: 'XSS Detection' },
+                                        { icon: <Shield className="w-5 h-5" />, label: 'CSRF Analysis' },
+                                        { icon: <Server className="w-5 h-5" />, label: 'SSRF Scanner' },
                                         { icon: <Lock className="w-5 h-5" />, label: 'Auth Testing' },
-                                        { icon: <Server className="w-5 h-5" />, label: 'API Security' },
+                                        { icon: <Globe className="w-5 h-5" />, label: 'API Security' },
+                                        { icon: <Terminal className="w-5 h-5" />, label: 'Command Injection' },
+                                        { icon: <Eye className="w-5 h-5" />, label: 'Cookie & SSL' },
                                     ].map((feature, i) => (
                                         <div key={i} className="p-4 bg-warm-50 rounded-xl">
                                             <div className="w-10 h-10 rounded-lg bg-accent-primary/10 flex items-center justify-center mx-auto mb-2 text-accent-primary">
