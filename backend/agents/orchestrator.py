@@ -296,8 +296,11 @@ class AgentOrchestrator:
             from .command_injection_agent import CommandInjectionAgent
 
             # GitHub agent - reconnaissance phase
+            from config import get_settings
+            settings = get_settings()
+            
             self._register_agent_safe(
-                GithubSecurityAgent(),
+                GithubSecurityAgent(github_token=settings.github_token),
                 phase=AgentPhase.RECONNAISSANCE,
                 dependencies=[],
                 timeout_seconds=OrchestratorConfig.GITHUB_AGENT_TIMEOUT
@@ -1981,10 +1984,30 @@ class AgentOrchestrator:
 
     def _sort_results(self, results: List[AgentResult]) -> List[AgentResult]:
         """Sort results by severity and confidence."""
-        return sorted(
-            results,
-            key=lambda x: (list(Severity).index(x.severity), -x.confidence)
-        )
+        def safe_sort_key(res):
+            try:
+                # Severity index (handle invalid severity)
+                if isinstance(res.severity, Severity):
+                    severity_idx = list(Severity).index(res.severity)
+                else:
+                    severity_idx = list(Severity).index(Severity.LOW)
+            except (ValueError, AttributeError):
+                severity_idx = list(Severity).index(Severity.LOW)
+            
+            try:
+                # Confidence (handle strings/None)
+                if isinstance(res.confidence, (int, float)):
+                    conf = res.confidence
+                elif isinstance(res.confidence, str) and res.confidence.isdigit():
+                    conf = int(res.confidence)
+                else:
+                    conf = 0.0
+            except (ValueError, TypeError):
+                conf = 0.0
+                
+            return (severity_idx, -conf)
+
+        return sorted(results, key=safe_sort_key)
 
     # ==================== Metrics ====================
 

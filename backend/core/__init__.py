@@ -1,8 +1,15 @@
 """Core utilities and shared components."""
 from .database import get_db, engine, Base
 from .security import create_access_token, verify_password, get_password_hash
-from .hf_client import hf_client, HuggingFaceClient
-from .hugging_face_client import hf_client_ii, HuggingFaceClientII
+# from .hf_client import hf_client, HuggingFaceClient
+from .groq_client import (
+    groq_manager, 
+    MultiKeyGroqManager,
+    scanner_generate,
+    repo_generate,
+    chatbot_generate,
+    ServiceType
+)
 from .rate_limiter import (
     AdaptiveRateLimiter,
     RateLimiterConfig,
@@ -24,10 +31,13 @@ __all__ = [
     "create_access_token",
     "verify_password",
     "get_password_hash",
-    "hf_client",
-    "HuggingFaceClient",
-    "hf_client_ii",
-    "HuggingFaceClientII",
+    # "hf_client", 
+    # "HuggingFaceClient",
+    "groq_manager",
+    "MultiKeyGroqManager",
+    "scanner_generate",
+    "repo_generate",
+    "chatbot_generate",
     "AdaptiveRateLimiter",
     "RateLimiterConfig",
     "get_rate_limiter",

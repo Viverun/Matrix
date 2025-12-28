@@ -13,19 +13,42 @@ class Settings(BaseSettings):
     debug: bool = True
     
     # AI
-    groq_api_key: str = ""
-    huggingface_api_key_ii: str = ""
-    
     # LLM Cost Optimization
     enable_llm_cache: bool = True
     llm_cache_ttl_hours: int = 24
-    huggingface_ii_rpm_limit: int = 10  # Requests per minute
-    groq_rpm_limit: int = 30  # Requests per minute
-    huggingface_rpm_limit: int = 5 # Requests per minute
+    # LLM Cost Optimization
+    enable_llm_cache: bool = True
+    llm_cache_ttl_hours: int = 24
     
-    # Hugging Face
-    huggingface_api_key: str = ""
-    huggingface_model_id: str = "Trendyol/Trendyol-Cybersecurity-LLM-v2-70B-Q4_K_M" # Default model
+    # Groq (LPU)
+    # Groq (LPU)
+    groq_api_key: str = ""  # Deprecated (legacy)
+    groq_api_key_scanner: str = ""
+    groq_api_key_repo: str = ""
+    groq_api_key_chatbot: str = ""
+    groq_api_key_fallback: str = ""
+    
+    # Groq Model Configuration
+    # Scanner Models
+    groq_model_scanner_primary: str = "llama-3.3-70b-versatile"
+    groq_model_scanner_fast: str = "llama-3.1-8b-instant"
+    groq_model_scanner_critical: str = "llama-3.3-70b-versatile"
+    
+    # Repo Analysis Models
+    groq_model_repo_primary: str = "llama-3.1-8b-instant"
+    groq_model_repo_large_files: str = "llama-3.1-8b-instant"
+    
+    # Chatbot Models
+    groq_model_chatbot: str = "llama-3.3-70b-versatile"
+    groq_chatbot_temperature: float = 0.7
+    
+    # Fallback Models
+    groq_model_fallback: str = "llama-3.3-70b-versatile"
+    
+    # Hugging Face (Removed)
+
+    # GitHub
+    github_token: str = ""
     
     # Database
     database_url: str = "sqlite+aiosqlite:///./matrix.db"

@@ -20,6 +20,7 @@ import Image from 'next/image';
 import { SpiderWeb } from '../../components/SpiderWeb';
 import { Navbar } from '../../components/Navbar';
 import { useAuth } from '../../context/AuthContext';
+import { api, Scan, Vulnerability } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 
 const MOCK_FILES = [
@@ -49,6 +50,7 @@ export default function RepoAnalysisPage() {
     ]);
     const [input, setInput] = useState('');
     const [progress, setProgress] = useState(0);
+    const [stats, setStats] = useState({ high: 0, secrets: 0, files: 0 });
     const chatEndRef = useRef<HTMLDivElement>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +70,8 @@ export default function RepoAnalysisPage() {
         scrollLogsToBottom();
     }, [auditLogs]);
 
+    const [scanId, setScanId] = useState<number | null>(null);
+
     const handleAnalyze = async () => {
         if (!repoUrl) return;
 
@@ -80,34 +84,88 @@ export default function RepoAnalysisPage() {
         setIsAuditDone(false);
         setProgress(0);
         setAuditLogs(['[SYSTEM] Initializing Matrix SAST Engine...', '[SYSTEM] Authenticating with GitHub API...']);
-
         setMessages([
             { role: 'assistant', content: `Analyzing ${repoUrl}. I'm scanning for secrets and vulnerabilities.` }
         ]);
 
-        let currentProgress = 0;
-        const interval = setInterval(() => {
-            currentProgress += 2;
-            setProgress(currentProgress);
+        try {
+            // 1. Create Scan
+            const scan = await api.createScan({
+                target_url: repoUrl,
+                scan_type: 'GITHUB_SAST',
+                agents_enabled: ['github_security', 'api_security', 'xss']
+            });
+            setScanId(scan.id);
+            setAuditLogs(prev => [...prev, `[INFO] Scan job created (ID: ${scan.id})`]);
 
-            if (currentProgress % 8 === 0 && currentProgress < 90) {
-                const file = MOCK_FILES[Math.floor(currentProgress / 8)];
-                if (file) {
-                    setAuditLogs(prev => [...prev, `[INFO] Analyzing ${file}...`, `[SAST] Deep scan of ${file} completed.`]);
+            // 2. Poll for Status
+            const interval = setInterval(async () => {
+                try {
+                    const statusUpdate = await api.getScan(scan.id);
+                    setProgress(statusUpdate.progress);
+
+                    // Add dynamic logs based on progress/status (simplified)
+                    if (statusUpdate.status === 'running') {
+                        // We could poll recent logs if the backend exposed them, for now just show progress
+                    }
+
+                    if (statusUpdate.status === 'completed') {
+                        clearInterval(interval);
+                        setIsAnalyzing(false);
+                        setIsAuditDone(true);
+                        setAuditLogs(prev => [...prev, '[SUCCESS] Analysis completed successfully.', '[SYSTEM] Fetching findings...']);
+
+                        // 3. Get Findings
+                        const vulnResponse = await api.getVulnerabilities(scan.id);
+                        const findings = vulnResponse.items;
+                        const critical = findings.filter(f => f.severity === 'critical').length;
+                        const high = findings.filter(f => f.severity === 'high').length;
+                        const secrets = findings.filter(f => f.vulnerability_type === 'secret_exposure').length;
+
+                        // Update Stats State
+                        setStats({
+                            files: 0, // Backend doesn't return file count in vuln summary, use placeholder or fetch from scan logs if available
+                            high: high + critical,
+                            secrets: secrets
+                        });
+
+                        // Construct summary message
+                        const summary = `Audit complete! I found ${findings.length} issues in total.\n` +
+                            `- Critical: ${critical}\n` +
+                            `- High: ${high}\n` +
+                            `- Secrets: ${secrets}\n\n` +
+                            `You can ask me about specific findings or remediation steps.`;
+
+                        setMessages(prevMsg => [...prevMsg, {
+                            role: 'assistant',
+                            content: summary
+                        }]);
+
+                        // Update the "Stats" in the UI (currently hardcoded in JSX) via state if needed
+                        // For now we just update the chat.
+
+                    } else if (statusUpdate.status === 'failed' || statusUpdate.status === 'cancelled') {
+                        clearInterval(interval);
+                        setIsAnalyzing(false);
+                        setAuditLogs(prev => [...prev, `[ERROR] Scan failed: ${statusUpdate.error_message}`]);
+                        setMessages(prevMsg => [...prevMsg, {
+                            role: 'assistant',
+                            content: `Analysis failed: ${statusUpdate.error_message}. Please check the URL and try again.`
+                        }]);
+                    }
+                } catch (e) {
+                    console.error("Poll error", e);
                 }
-            }
+            }, 2000);
 
-            if (currentProgress >= 100) {
-                clearInterval(interval);
-                setIsAnalyzing(false);
-                setIsAuditDone(true);
-                setAuditLogs(prev => [...prev, '[SUCCESS] All files analyzed.', '[SYSTEM] Aggregating security findings...']);
-                setMessages(prevMsg => [...prevMsg, {
-                    role: 'assistant',
-                    content: 'Audit complete! I found 3 high-severity vulnerabilities and 5 hardcoded secrets. You can ask me anything about the findings or specific files.'
-                }]);
-            }
-        }, 150);
+        } catch (error: any) {
+            setIsAnalyzing(false);
+            setAuditLogs(prev => [...prev, `[ERROR] Failed to start scan: ${error.message}`]);
+            setMessages(prevMsg => [...prevMsg, {
+                role: 'assistant',
+                content: `Could not start analysis: ${error.message}`
+            }]);
+        }
     };
 
     const handleSendMessage = () => {
@@ -117,10 +175,12 @@ export default function RepoAnalysisPage() {
         setMessages(newMessages);
         setInput('');
 
+        // Placeholder for Chatbot Integration
+        // Ideally we would call an endpoint like POST /api/chat { message, context: { scan_id: scanId } }
         setTimeout(() => {
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: `Based on the source code, this issue is caused by a lack of proper input sanitization. I recommend using parameterized queries in your database handlers.`
+                content: `I'm sorry, I cannot answer questions about the code yet (Chat API integration pending). Please view the full report in the Dashboard.`
             }]);
         }, 1000);
     };
@@ -362,15 +422,15 @@ export default function RepoAnalysisPage() {
 
                     <div className="mt-6 grid grid-cols-3 gap-4">
                         <div className="glass-card p-6 text-center">
-                            <div className="text-3xl font-serif text-accent-primary font-light">{isAuditDone ? '1.2k' : '0'}</div>
+                            <div className="text-3xl font-serif text-accent-primary font-light">{isAuditDone ? (stats.files || '~') : '0'}</div>
                             <div className="text-[10px] text-text-muted uppercase tracking-tighter">Files Scanned</div>
                         </div>
                         <div className="glass-card p-6 text-center">
-                            <div className="text-3xl font-serif text-red-500 font-light">{isAuditDone ? '03' : '0'}</div>
+                            <div className="text-3xl font-serif text-red-500 font-light">{isAuditDone ? stats.high : '0'}</div>
                             <div className="text-[10px] text-text-muted uppercase tracking-tighter">High Severity</div>
                         </div>
                         <div className="glass-card p-6 text-center">
-                            <div className="text-3xl font-serif text-accent-gold font-light">{isAuditDone ? '05' : '0'}</div>
+                            <div className="text-3xl font-serif text-accent-gold font-light">{isAuditDone ? stats.secrets : '0'}</div>
                             <div className="text-[10px] text-text-muted uppercase tracking-tighter">Credentials</div>
                         </div>
                     </div>

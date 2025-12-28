@@ -24,7 +24,7 @@ from .dependency_parser import DependencyParser, ParsedDependency
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from models.vulnerability import Severity, VulnerabilityType
-from core.hugging_face_client import hf_client_ii
+from core.groq_client import repo_generate, groq_manager, ModelTier
 
 if TYPE_CHECKING:
     from core.scan_context import ScanContext
@@ -82,7 +82,6 @@ class SecretPattern:
         # API Keys
         (r'sk-[a-zA-Z0-9]{48}', "OpenAI API Key", True),
         (r'sk-proj-[a-zA-Z0-9\-_]{48,}', "OpenAI Project Key", True),
-        (r'gsk_[a-zA-Z0-9]{48}', "Groq API Key", True),
         (r'sk-ant-[a-zA-Z0-9\-_]{95,}', "Anthropic API Key", True),
 
         # Version Control
@@ -673,7 +672,7 @@ class GithubSecurityAgent(BaseSecurityAgent):
             results.extend(secret_results)
 
             # 2. AI-powered SAST (if configured)
-            if hf_client_ii.is_configured:
+            if groq_manager.is_configured:
                 ai_results = await self._ai_analysis(content, file_path, owner, repo, branch)
                 results.extend(ai_results)
 
@@ -908,8 +907,6 @@ class GithubSecurityAgent(BaseSecurityAgent):
         # Show first 5 and last 5 characters
         return secret[:5] + '...' + secret[-5:]
 
-    # ==================== AI Analysis ====================
-
     async def _ai_analysis(
             self,
             content: str,
@@ -921,8 +918,56 @@ class GithubSecurityAgent(BaseSecurityAgent):
         """Perform AI-powered static analysis"""
         results = []
 
+        # SKIP Lockfiles (too large, handled by dependency scanner)
+        if any(file_path.endswith(ext) for ext in ['.lock', '-lock.json', '.lockb', '.yaml', '.yml']):
+            return []
+
         try:
-            ai_results = await openrouter_client.analyze_code(file_path, content)
+            # Construct analysis prompt
+            system_prompt = """You are a specialized security code analyzer.
+Analyze the provided code for security vulnerabilities only.
+Focus on high-confidence issues like XSS, SQL Injection, RCE, Path Traversal, and Hardcoded Secrets.
+Ignored minor code style issues.
+
+Response Format (JSON):
+{
+  "vulnerabilities": [
+    {
+      "type": "Vulnerability Type",
+      "severity": "CRITICAL|HIGH|MEDIUM|LOW",
+      "line": <line_number>,
+      "description": "Brief description of the issue",
+      "fix": "Suggested fix",
+      "confidence": "HIGH|MEDIUM"
+    }
+  ]
+}
+If no vulnerabilities are found, return {"vulnerabilities": []}."""
+
+            # Determine model tier based on content size
+            tier = ModelTier.STANDARD
+            truncation_limit = 20000 # Default to 20k chars
+            
+            # If content is large (>20k chars), use Large Context model
+            if len(content) > 20000:
+                tier = ModelTier.LARGE_CONTEXT
+                truncation_limit = 100000 # Up to 100k chars for Mixtral
+            
+            # If very small config file, use Fast model
+            elif len(content) < 1000 and any(x in file_path.lower() for x in ['.env', '.json', '.yaml', '.yml', '.ini']):
+                tier = ModelTier.FAST
+
+            user_prompt = f"Analyze this file: {file_path}\n\nCode:\n{content[:truncation_limit]}"
+
+            response = await repo_generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                tier=tier,
+                json_mode=True
+            )
+            
+            import json
+            ai_results = json.loads(response['content'])
 
             if 'vulnerabilities' in ai_results:
                 for vuln in ai_results['vulnerabilities']:
@@ -930,13 +975,13 @@ class GithubSecurityAgent(BaseSecurityAgent):
                         vulnerability_type=self._map_vuln_type(vuln.get('type')),
                         is_vulnerable=True,
                         severity=self._map_severity(vuln.get('severity')),
-                        confidence=vuln.get('confidence', 70),
+                        confidence=int(vuln.get('confidence', 70) if str(vuln.get('confidence', 70)).isdigit() else 70),
                         url=f"https://github.com/{owner}/{repo}/blob/{branch}/{file_path}#L{vuln.get('line_number', 1)}",
                         title=vuln.get('title', 'Security Finding'),
                         description=vuln.get('description', ''),
                         evidence=vuln.get('evidence', ''),
                         remediation=vuln.get('remediation', ''),
-                        ai_analysis=ai_results.get('summary', '')
+                        ai_analysis=str(ai_results)
                     ))
         except Exception as e:
             logger.error(f"AI analysis error for {file_path}: {e}")

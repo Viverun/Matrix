@@ -7,7 +7,7 @@ scan results and providing actionable guidance to developers.
 import httpx
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from core.hugging_face_client import hf_client_ii
+from core.groq_client import chatbot_generate, groq_manager
 from core.logger import get_logger
 
 # Initialize structured logger
@@ -24,7 +24,7 @@ class SASTChatbot:
     """
     
     # Default configuration
-    DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+    DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
     DEFAULT_TEMPERATURE = 0.3
     DEFAULT_MAX_TOKENS = 2048
     REQUEST_TIMEOUT = 60.0
@@ -36,9 +36,9 @@ class SASTChatbot:
         
         Args:
             model: The AI model identifier to use for chat completions.
-                  Defaults to Trendyol/Trendyol-Cybersecurity-LLM-v2-70B-Q4_K_ via Hugging Face II.
+                  Defaults to Trendyol/Trendyol-Cybersecurity-LLM-v2-70B-Q4_K_ via Hugging Face.
         """
-        self.client = hf_client_ii
+        self.client = groq_manager
         self.model = model
         self.conversation_history: List[Dict[str, str]] = []
         self.scan_context: str = ""
@@ -140,9 +140,9 @@ The developer trusts you to guide them to a more secure codebase. Be their secur
         if response:
             return response
             
-        response = await self._try_huggingface(messages)
-        if response:
-            return response
+        # response = await self._try_huggingface(messages)
+        # if response:
+        #    return response
         
         # Both providers failed
         error_msg = "Error: Both Hugging Face II and Hugging Face AI providers are unavailable or unconfigured."
@@ -163,107 +163,40 @@ The developer trusts you to guide them to a more secure codebase. Be their secur
     
     async def _try_hf_ii(self, messages: List[Dict[str, str]]) -> Optional[str]:
         """
-        Attempt to get a response from Hugging Face II.
-        
-        Args:
-            messages: The message history to send to the API.
-            
-        Returns:
-            The AI response if successful, None otherwise.
+        Attempt to get a response from Groq (via chatbot key).
         """
         if not self.client.is_configured:
-            logger.debug("Hugging Face II not configured, skipping")
+            logger.debug("Groq Client not configured, skipping")
             return None
         
         try:
-            logger.info(f"Attempting Hugging Face II request with model: {self.model}")
+            logger.info(f"Attempting Groq chat with model: {self.model}")
             
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.client.base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.client.api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://matrix-security.app",
-                        "X-Title": "Matrix AI Security"
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": self.DEFAULT_TEMPERATURE,
-                        "max_tokens": self.DEFAULT_MAX_TOKENS
-                    },
-                    timeout=self.REQUEST_TIMEOUT
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data['choices'][0]['message']['content']
-                    
-                    self.conversation_history.append({
-                        "role": "assistant",
-                        "content": content
-                    })
-                    logger.info("Hugging Face II request successful")
-                    return content
-                
-                # Handle specific error cases
-                if response.status_code == 402:
-                    logger.warning("Hugging Face II payment required (402). Triggering fallback.")
-                elif response.status_code == 429:
-                    logger.warning("Hugging Face II rate limit exceeded (429). Triggering fallback.")
-                else:
-                    logger.warning(f"Hugging Face II request failed with status: {response.status_code}")
-                
-                return None
-                
-        except httpx.TimeoutException:
-            logger.error(f"Hugging Face II request timed out after {self.REQUEST_TIMEOUT}s")
+            response = await chatbot_generate(
+                messages=messages,
+                model=self.model,
+                temperature=self.DEFAULT_TEMPERATURE,
+                max_tokens=self.DEFAULT_MAX_TOKENS
+            )
+            
+            content = response.get('content')
+            
+            if content:
+                self.conversation_history.append({
+                    "role": "assistant",
+                    "content": content
+                })
+                logger.info("Groq chat request successful")
+                return content
+            
+            logger.warning("Groq chat returned no content")
             return None
-        except httpx.RequestError as e:
-            logger.error(f"Hugging Face II request error: {str(e)}")
-            return None
-        except (KeyError, ValueError) as e:
-            logger.error(f"Hugging Face II response parsing error: {str(e)}")
-            return None
+            
         except Exception as e:
-            logger.error(f"Unexpected Hugging Face II error: {str(e)}", exc_info=True)
+            logger.error(f"Groq chat error: {str(e)}", exc_info=True)
             return None
     
-    async def _try_huggingface(self, messages: List[Dict[str, str]]) -> Optional[str]:
-        """
-        Attempt to get a response from Hugging Face (fallback provider).
-        
-        Args:
-            messages: The message history to send to the API.
-            
-        Returns:
-            The AI response if successful, None otherwise.
-        """
-        logger.info("Attempting Hugging Face fallback")
-        
-        try:
-            from core import hf_client
-            
-            if not hf_client.is_configured:
-                logger.warning("Hugging Face client not configured")
-                return None
-            
-            content = await hf_client.chat(messages)
-            
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": content
-            })
-            logger.info("Hugging Face request successful")
-            return content
-            
-        except ImportError:
-            logger.error("Hugging Face client module not found")
-            return None
-        except Exception as e:
-            logger.error(f"Hugging Face error: {str(e)}", exc_info=True)
-            return None
+    # Hugging Face fallback removed
     
     def reset_conversation(self) -> None:
         """

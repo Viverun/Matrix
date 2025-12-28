@@ -32,10 +32,13 @@ import httpx
 import asyncio
 import time
 import logging
+import json
+import re
 from datetime import datetime
 from urllib.parse import urlparse
 
-from core import hf_client
+# from core import hf_client
+from core.groq_client import scanner_generate
 from core.rate_limiter import get_rate_limiter, AdaptiveRateLimiter
 from core.request_cache import get_request_cache, RequestCache
 from core.evidence_tracker import get_evidence_tracker, EvidenceChain, DetectionMethod
@@ -414,10 +417,8 @@ class BaseSecurityAgent(ABC):
         # Initialize HTTP client
         self.http_client = self._create_http_client()
 
-        # Core services
-        self.evidence_tracker = get_evidence_tracker()
+        # self.evidence_tracker = get_evidence_tracker()
         self.diff_detector = DiffDetector()
-        self.hf = hf_client
         self.rate_limiter: AdaptiveRateLimiter = get_rate_limiter()
         self.cache: RequestCache = get_request_cache()
 
@@ -837,6 +838,29 @@ class BaseSecurityAgent(ABC):
     # AI ANALYSIS
     # ========================================================================
 
+    def _extract_json(self, text: str) -> Dict[str, Any]:
+        """Extract JSON from potential markdown blocks."""
+        try:
+            # Try direct parse first
+            return json.loads(text.strip())
+        except json.JSONDecodeError:
+            # Look for markdown code block
+            match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1).strip())
+                except:
+                    pass
+            
+            # Simple fallback for standard JSON objects
+            match = re.search(r'(\{.*\})', text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1).strip())
+                except:
+                    pass
+        return {}
+
     async def analyze_with_ai(
             self,
             vulnerability_type: str,
@@ -844,7 +868,7 @@ class BaseSecurityAgent(ABC):
             response_data: str
     ) -> Dict[str, Any]:
         """
-        Use Gemini AI to analyze potential vulnerability.
+        Use Groq LPU to analyze potential vulnerability.
 
         Args:
             vulnerability_type: Type of vulnerability being tested
@@ -856,24 +880,56 @@ class BaseSecurityAgent(ABC):
 
         Raises:
             AIAnalysisException: If AI analysis fails
-
-        Example:
-            analysis = await self.analyze_with_ai(
-                vulnerability_type="SQL Injection",
-                context="Tested time-based blind injection with SLEEP(5)",
-                response_data=response.text
-            )
-            confidence = analysis.get("confidence", 0)
         """
         try:
-            return await self.hf.analyze_vulnerability(
-                vulnerability_type=vulnerability_type,
-                context=context,
-                response_data=response_data
+            prompt = f"""
+            Analyze this security finding and provide a structured assessment.
+            
+            Vulnerability Type: {vulnerability_type}
+            Context: {context}
+            Response Snippet (First 2000 chars): 
+            ---
+            {response_data[:2000] if response_data else 'No response data provided.'}
+            ---
+            
+            Analyze the response to determine if it confirms the vulnerability.
+            BE CRITICAL. If it looks like a generic error page or is not clearly exploitable, mark 'is_vulnerable': false.
+            
+            Return a JSON object with this exact structure:
+            {{
+                "is_vulnerable": boolean,
+                "confidence": integer (0-100),
+                "severity": "CRITICAL"|"HIGH"|"MEDIUM"|"LOW"|"INFO",
+                "title": "Concise Technical Title",
+                "description": "Detailed technical explanation of the finding",
+                "reason": "Why you believe this is or is not a vulnerability",
+                "remediation": "Brief high-level fix guidance",
+                "likelihood": float (0.0-10.0),
+                "impact": float (0.0-10.0),
+                "exploitability_rationale": "Why this is easy or hard to exploit"
+            }}
+            """
+            
+            response = await scanner_generate(
+                prompt=prompt, 
+                json_mode=False,
+                system_prompt="You are an expert security researcher. Extract vulnerabilities from raw HTTP data. Output ONLY raw JSON."
             )
+            content = response.get("content", "{}")
+            return self._extract_json(content)
+            
         except Exception as e:
-            logger.error(f"[{self.agent_name}] AI analysis failed: {e}")
-            raise AIAnalysisException(f"AI analysis failed: {e}")
+            logger.error(f"[{self.agent_name}] Groq analysis failed: {e}", exc_info=True)
+            # Fallback to safe defaults rather than crashing
+            return {
+                "is_vulnerable": False, 
+                "confidence": 0, 
+                "severity": "INFO",
+                "title": f"Scan Error: {vulnerability_type}",
+                "description": f"AI analysis failed to process this finding: {str(e)}",
+                "reason": "AI processing error",
+                "remediation": "Manual verification required."
+            }
 
     async def generate_remediation(
             self,
@@ -882,7 +938,7 @@ class BaseSecurityAgent(ABC):
             technology_stack: List[str]
     ) -> Dict[str, Any]:
         """
-        Generate remediation recommendations using AI.
+        Generate detailed remediation recommendations using Groq.
 
         Args:
             vulnerability_type: Type of vulnerability
@@ -891,24 +947,38 @@ class BaseSecurityAgent(ABC):
 
         Returns:
             Remediation recommendations with code examples
-
-        Example:
-            remediation = await self.generate_remediation(
-                vulnerability_type="SQL Injection",
-                code_context="SELECT * FROM users WHERE id = " + user_id,
-                technology_stack=["PHP", "MySQL"]
-            )
-            print(remediation.get("fix_code"))
         """
         try:
-            return await self.hf.generate_fix_recommendation(
-                vulnerability_type=vulnerability_type,
-                code_context=code_context,
-                technology_stack=technology_stack or []
+            prompt = f"""
+            Provide detailed remediation for this vulnerability.
+            
+            Vulnerability: {vulnerability_type}
+            Context: {code_context}
+            Technologies: {', '.join(technology_stack) if technology_stack else 'Unknown'}
+            
+            Return a JSON object with:
+            {{
+                "remediation": "Step-by-step description",
+                "remediation_code": "Corrected code snippet",
+                "reference_links": ["list", "of", "links"],
+                "best_practices": "Security best practices list"
+            }}
+            """
+            
+            response = await scanner_generate(
+                prompt=prompt, 
+                json_mode=False,
+                system_prompt="You are a senior security engineer providing remediation guidance. Output ONLY raw JSON."
             )
+            return self._extract_json(response.get("content", "{}"))
         except Exception as e:
             logger.error(f"[{self.agent_name}] Remediation generation failed: {e}")
-            raise AIAnalysisException(f"Remediation generation failed: {e}")
+            return {
+                "remediation": "Standard remediation required.",
+                "remediation_code": "",
+                "reference_links": [],
+                "best_practices": "Follow OWASP guidelines."
+            }
 
     # ========================================================================
     # RESULT CREATION

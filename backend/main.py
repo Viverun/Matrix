@@ -44,6 +44,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         
+        # In Debug/Dev mode, skip strict security headers to avoid CORS/Fetch issues on localhost
+        if settings.debug:
+            return response
+
         # Generate unique CSP nonce per response (NEVER reuse)
         nonce = secrets.token_urlsafe(16)
         
@@ -151,17 +155,28 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS
+# Add security headers middleware FIRST (inner layer)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Configure CORS LAST (outer layer, runs first on request)
+# Note: allow_origins=["*"] with allow_credentials=True fails in many browsers.
+# We must specify exact origins.
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+if settings.debug:
+    # In debug mode, we might want to allow other local ports or tools
+    origins.append("http://localhost:8000")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else ["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Add security headers middleware
-app.add_middleware(SecurityHeadersMiddleware)
 
 
 # Health check endpoint

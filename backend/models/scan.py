@@ -98,6 +98,7 @@ class ScanType(str, Enum):
     TARGETED = "targeted"
     COMPLIANCE = "compliance"
     RETEST = "retest"
+    GITHUB_SAST = "github_sast"
 
 
 # ============================================================================

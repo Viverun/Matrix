@@ -1,21 +1,21 @@
-# Node dependencies
-node_modules/
-frontend/node_modules/
+# # Node dependencies
+# node_modules/
+# frontend/node_modules/
 
-# Next.js build output
-.next/
-frontend/.next/
+# # Next.js build output
+# .next/
+# frontend/.next/
 
-# OS / Editor junk
-.DS_Store
-Thumbs.db
+# # OS / Editor junk
+# .DS_Store
+# Thumbs.db
 
-# Environment variables (secrets)
-.env
-backend/.env
+# # Environment variables (secrets)
+# .env
+# backend/.env
 
-# Python
-venv/
-backend/venv/
-__pycache__/
-*.pyc
+# # Python
+# venv/
+# backend/venv/
+# __pycache__/
+# *.pyc

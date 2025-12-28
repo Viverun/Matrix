@@ -46,32 +46,19 @@ export default function ScanPage() {
     ]);
 
     // Simulate agent progress during scan
+    // Use real agent status from scan results
     useEffect(() => {
-        if (isScanning) {
-            const agentOrder = [0, 1, 2, 3, 4, 5];
-            let currentAgent = 0;
-
-            const interval = setInterval(() => {
-                if (currentAgent < agentOrder.length) {
-                    setAgentStatuses(prev => prev.map((agent, idx) => {
-                        if (idx === agentOrder[currentAgent]) {
-                            return { ...agent, status: 'active' };
-                        }
-                        if (idx < agentOrder[currentAgent]) {
-                            return { ...agent, status: 'completed', findings: Math.floor(Math.random() * 3) };
-                        }
-                        return agent;
-                    }));
-                    currentAgent++;
-                }
-            }, 3000);
-
-            return () => clearInterval(interval);
-        } else {
-            // Reset agents when not scanning
-            setAgentStatuses(prev => prev.map(agent => ({ ...agent, status: 'pending', findings: 0 })));
+        if (scanResults && scanResults.status !== 'pending') {
+            // Update agent statuses based on real scan progress/results
+            // This is a simplified mapping as the backend doesn't yet stream granular per-agent status
+            // We can infer completion based on overall progress
+            if (scanResults.status === 'completed') {
+                setAgentStatuses(prev => prev.map(agent => ({ ...agent, status: 'completed' })));
+            } else if (scanResults.status === 'running') {
+                setAgentStatuses(prev => prev.map(agent => ({ ...agent, status: 'active' })));
+            }
         }
-    }, [isScanning]);
+    }, [scanResults]);
 
     const addLog = (type: string, message: string) => {
         setTerminalLogs(prev => [...prev.slice(-15), { type, message }]); // Keep last 15 logs
@@ -94,7 +81,7 @@ export default function ScanPage() {
         try {
             const newScan = await api.createScan({
                 target_url: targetUrl,
-                scan_type: 'full'
+                scan_type: 'FULL'
             });
 
             addLog('success', `Scan created with ID: ${newScan.id}`);
@@ -363,18 +350,18 @@ export default function ScanPage() {
                                             <div
                                                 key={idx}
                                                 className={`p-4 rounded-xl border-2 transition-all duration-300 ${agent.status === 'active'
-                                                        ? 'bg-accent-primary/5 border-accent-primary shadow-lg shadow-accent-primary/10'
-                                                        : agent.status === 'completed'
-                                                            ? 'bg-amber-50 border-amber-200'
-                                                            : 'bg-white border-warm-200'
+                                                    ? 'bg-accent-primary/5 border-accent-primary shadow-lg shadow-accent-primary/10'
+                                                    : agent.status === 'completed'
+                                                        ? 'bg-amber-50 border-amber-200'
+                                                        : 'bg-white border-warm-200'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${agent.status === 'active'
-                                                            ? 'bg-accent-primary text-white'
-                                                            : agent.status === 'completed'
-                                                                ? 'bg-amber-500 text-white'
-                                                                : 'bg-warm-200 text-warm-500'
+                                                        ? 'bg-accent-primary text-white'
+                                                        : agent.status === 'completed'
+                                                            ? 'bg-amber-500 text-white'
+                                                            : 'bg-warm-200 text-warm-500'
                                                         }`}>
                                                         {agent.status === 'active' ? (
                                                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -387,7 +374,7 @@ export default function ScanPage() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="font-medium text-text-primary text-sm truncate">{agent.name}</div>
                                                         <div className={`text-xs ${agent.status === 'active' ? 'text-accent-primary' :
-                                                                agent.status === 'completed' ? 'text-amber-700' : 'text-text-muted'
+                                                            agent.status === 'completed' ? 'text-amber-700' : 'text-text-muted'
                                                             }`}>
                                                             {agent.status === 'active' ? 'Scanning...' :
                                                                 agent.status === 'completed' ? 'Audited' : 'Waiting'}
@@ -477,9 +464,9 @@ export default function ScanPage() {
                                     <div className="bg-gradient-to-r from-stone-50 to-amber-50/50 backdrop-blur rounded-xl p-5 border border-stone-200 flex items-center justify-between shadow-sm">
                                         <div className="flex items-center gap-4">
                                             <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold shadow-lg ${(scanResults?.critical_count || 0) > 0 ? 'bg-gradient-to-br from-rose-500 to-rose-700 text-white' :
-                                                    (scanResults?.high_count || 0) > 0 ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white' :
-                                                        (scanResults?.medium_count || 0) > 0 ? 'bg-gradient-to-br from-yellow-500 to-yellow-700 text-white' :
-                                                            'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white'
+                                                (scanResults?.high_count || 0) > 0 ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white' :
+                                                    (scanResults?.medium_count || 0) > 0 ? 'bg-gradient-to-br from-yellow-500 to-yellow-700 text-white' :
+                                                        'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white'
                                                 }`}>
                                                 {(scanResults?.critical_count || 0) > 0 ? 'F' : (scanResults?.high_count || 0) > 0 ? 'D' : (scanResults?.medium_count || 0) > 0 ? 'C' : 'A'}
                                             </div>
@@ -516,8 +503,8 @@ export default function ScanPage() {
                                                 key={tab.id}
                                                 onClick={() => setActiveTab(tab.id as any)}
                                                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all ${activeTab === tab.id
-                                                        ? 'text-accent-primary border-b-2 border-accent-primary bg-accent-primary/5'
-                                                        : 'text-text-muted hover:text-text-primary hover:bg-warm-50'
+                                                    ? 'text-accent-primary border-b-2 border-accent-primary bg-accent-primary/5'
+                                                    : 'text-text-muted hover:text-text-primary hover:bg-warm-50'
                                                     }`}
                                             >
                                                 {tab.icon}
