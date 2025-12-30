@@ -1,0 +1,10 @@
+Binary file [35mbackend/core/__pycache__/groq_client.cpython-312.pyc[m matches
+[35mbackend/core/groq_client.py[m[36m:[m            ServiceType.SECURITY_SCANNER: settings.groq_api_key_scanner or os.getenv("[1;31mGROQ_API_KEY[m_SCANNER") or settings.groq_api_key,
+[35mbackend/core/groq_client.py[m[36m:[m            ServiceType.REPO_ANALYSIS: settings.groq_api_key_repo or os.getenv("[1;31mGROQ_API_KEY[m_REPO") or settings.groq_api_key,
+[35mbackend/core/groq_client.py[m[36m:[m            ServiceType.CHATBOT: settings.groq_api_key_chatbot or os.getenv("[1;31mGROQ_API_KEY[m_CHATBOT") or settings.groq_api_key,
+[35mbackend/core/groq_client.py[m[36m:[m            ServiceType.FALLBACK: settings.groq_api_key_fallback or os.getenv("[1;31mGROQ_API_KEY[m_FALLBACK") or settings.groq_api_key,
+Binary file [35mbackend/matrix.db[m matches
+[35mbackend/verify_groq_config.py[m[36m:[m        "Scanner": settings.groq_api_key_scanner or os.getenv("[1;31mGROQ_API_KEY[m_SCANNER"),
+[35mbackend/verify_groq_config.py[m[36m:[m        "Repo": settings.groq_api_key_repo or os.getenv("[1;31mGROQ_API_KEY[m_REPO"),
+[35mbackend/verify_groq_config.py[m[36m:[m        "Chatbot": settings.groq_api_key_chatbot or os.getenv("[1;31mGROQ_API_KEY[m_CHATBOT"),
+[35mbackend/verify_groq_config.py[m[36m:[m        "Fallback": settings.groq_api_key_fallback or os.getenv("[1;31mGROQ_API_KEY[m_FALLBACK"),

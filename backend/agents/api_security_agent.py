@@ -1158,21 +1158,27 @@ class APISecurityAgent(BaseSecurityAgent):
             if parsed.scheme == "https":
                 http_url = url.replace("https://", "http://")
                 try:
-                    response = await self.make_request(http_url)
-                    if response and response.status_code == 200:
+                    # Use requests directly with allow_redirects=False to check if HTTP redirects
+                    import requests as sync_requests
+                    response = sync_requests.get(http_url, allow_redirects=False, timeout=10, 
+                                                  headers={"User-Agent": "Mozilla/5.0 Matrix Security Scanner"})
+                    # Only report if HTTP returns 200 (not a redirect like 301/302/308)
+                    if response.status_code == 200:
                         results.append(self.create_result(
                             vulnerability_type=VulnerabilityType.SECURITY_MISCONFIG,
                             is_vulnerable=True, severity=Severity.MEDIUM, confidence=95, url=url,
                             title="Site Accessible Over HTTP (No HTTPS Redirect)",
                             description="Site content is available over unencrypted HTTP. Sensitive data could be intercepted.",
-                            evidence="HTTP 200 OK - No redirect to HTTPS",
+                            evidence=f"HTTP {response.status_code} - No redirect to HTTPS",
                             likelihood=7.0, impact=6.0,
                             remediation="Implement HTTP to HTTPS redirect for all pages.",
                             owasp_category="API8:2023 - Security Misconfiguration",
                             cwe_id="CWE-319"
                         ))
-                except Exception:
-                    pass
+                    elif response.status_code in (301, 302, 307, 308):
+                        logger.debug(f"[API Agent] HTTP correctly redirects to HTTPS: {response.status_code}")
+                except Exception as e:
+                    logger.debug(f"[API Agent] HTTP check failed (this is okay): {e}")
 
             response = await self.make_request(url)
             if response:
