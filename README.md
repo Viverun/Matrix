@@ -16,7 +16,7 @@
 
 ## 🚀 Overview
 
-**Matrix** is an enterprise-grade, AI-powered autonomous security testing platform that democratizes penetration testing through intelligent agent orchestration. Built with **Groq AI** (Llama 3.3 70B) and a sophisticated multi-agent architecture, Matrix simulates real-world attacker behavior to discover vulnerabilities before they're exploited.
+**Matrix** is an AI-powered autonomous security testing platform built with a mission to democratize penetration testing. Designed to rival enterprise-grade solutions, Matrix leverages **Groq AI** (Llama 3.3 70B) and intelligent agent orchestration to simulate real-world attacker behavior and discover vulnerabilities before they're exploited.
 
 ### Why Matrix?
 
@@ -24,7 +24,7 @@
 - **⚡ Real-Time Visualization**: Watch agents analyze your application with live terminal logs and animated status cards
 - **📈 Professional Reporting**: Export CISO-grade security reports with CVSS v3.1 scoring, CWE mappings, and severity distributions
 - **🎨 Premium UI/UX**: Beautiful glassmorphism design with Matrix rain animations and responsive layouts
-- **🔬 Production-Ready**: Async task processing with Redis Queue (RQ), WAF evasion, rate limiting, and request caching
+- **🔬 Built for Scale**: Async task processing with Redis Queue (RQ), WAF evasion, rate limiting, and request caching
 
 ---
 
@@ -70,32 +70,83 @@ Each agent is purpose-built for specific attack vectors, powered by AI analysis 
 Matrix employs a sophisticated **multi-agent orchestration** architecture with four distinct phases:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Agent Orchestrator                        │
-│         (Dependency Graph • Scan Context • Metrics)          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-   ┌────▼─────┐        ┌──────▼──────┐       ┌─────▼──────┐
-   │ Phase 1: │        │  Phase 2:   │       │  Phase 3:  │
-   │   RECON  │───────▶│  DISCOVERY  │──────▶│EXPLOITATION│
-   │          │        │             │       │            │
-   │ • GitHub │        │ • Auth      │       │ • SQLi     │
-   │ • Target │        │ • API Sec   │       │ • XSS      │
-   │   Enum   │        │             │       │ • CSRF     │
-   └──────────┘        └─────────────┘       │ • SSRF     │
-                                              │ • Cmd Inj  │
-                                              └─────┬──────┘
-                                                    │
-                                              ┌─────▼──────┐
-                                              │  Phase 4:  │
-                                              │  ANALYSIS  │
-                                              │            │
-                                              │ • Correlate│
-                                              │ • Dedupe   │
-                                              │ • Report   │
-                                              └────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          🎯 MATRIX ORCHESTRATOR                               │
+│                                                                               │
+│  • Dependency Resolution Engine    • Scan Context (Shared State)             │
+│  • Progress Tracking & Callbacks   • Error Handling & Retry Logic            │
+│  • Result Aggregation & Metrics    • Agent Lifecycle Management              │
+└───────────────────────────────────┬──────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+         ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+         │  PHASE 1:    │  │  PHASE 2:    │  │  PHASE 3:    │
+         │RECONNAISSANCE│─▶│  DISCOVERY   │─▶│EXPLOITATION  │
+         └──────────────┘  └──────────────┘  └──────────────┘
+                │                  │                  │
+                │                  │                  │
+        ┌───────┴────────┐  ┌──────┴──────┐  ┌───────┴─────────┐
+        │                │  │             │  │                 │
+    ┌───▼────┐     ┌─────▼──┐  ┌─────▼─────┐  ┌─────▼─────┐ ┌──▼──────┐
+    │ GitHub │     │ Target │  │   Auth    │  │   SQLi    │ │   XSS   │
+    │ Scanner│     │ Enumera│  │   Agent   │  │   Agent   │ │  Agent  │
+    │        │     │  tion  │  │           │  │           │ │         │
+    │• Secret│     │• Crawl │  │• Login    │  │• Error-   │ │• Reflect│
+    │  Scan  │     │• Spider│  │• Session  │  │  based    │ │• Stored │
+    │• Vulns │     │• EndPts│  │• Cookies  │  │• Blind    │ │• DOM    │
+    │• Deps  │     │• Forms │  │• JWT Test │  │• Time     │ │• Context│
+    └────────┘     └────────┘  └───────────┘  └───────────┘ └─────────┘
+                                       │              │           │
+                                ┌──────┴──────┐  ┌────┴─────┐ ┌──┴──────┐
+                                │   API Sec   │  │  CSRF    │ │  SSRF   │
+                                │    Agent    │  │  Agent   │ │  Agent  │
+                                │             │  │          │ │         │
+                                │• IDOR       │  │• Token   │ │• Cloud  │
+                                │• Rate Limit │  │• SameSite│ │  Meta   │
+                                │• CORS       │  │• CSRF    │ │• Intern │
+                                └─────────────┘  └──────────┘ └─────────┘
+                                       │              │           │
+                                       │      ┌───────┴───────┐   │
+                                       │      │   Cmd Inject  │   │
+                                       │      │     Agent     │   │
+                                       │      │               │   │
+                                       │      │• OS Commands  │   │
+                                       │      │• Path Trav    │   │
+                                       │      │• Shell Meta   │   │
+                                       │      └───────────────┘   │
+                                       └──────────┬───────────────┘
+                                                  │
+                                    ┌─────────────▼─────────────┐
+                                    │      PHASE 4:             │
+                                    │  INTELLIGENCE LAYER       │
+                                    │                           │
+                                    │  🧠 AI Analysis (Groq)    │
+                                    │  🔗 Evidence Correlation  │
+                                    │  ⚖️  Confidence Scoring   │
+                                    │  🚫 False Positive Filter │
+                                    │  🎯 Exploitability Gates  │
+                                    │  📊 Deduplication Engine  │
+                                    └───────────┬───────────────┘
+                                                │
+                                    ┌───────────▼───────────────┐
+                                    │   📤 OUTPUT LAYER         │
+                                    │                           │
+                                    │  • Vulnerability DB       │
+                                    │  • PDF Report Generator   │
+                                    │  • JSON Export            │
+                                    │  • Real-time WebSocket    │
+                                    │  • Scan Metrics           │
+                                    └───────────────────────────┘
+
+                            ┌─────────────────────────────┐
+                            │  INFRASTRUCTURE LAYER       │
+                            │                             │
+                            │  Redis Queue (RQ Worker)    │
+                            │  SQLite/PostgreSQL          │
+                            │  FastAPI Backend            │
+                            │  Next.js Frontend           │
+                            └─────────────────────────────┘
 ```
 
 ### Technology Stack
