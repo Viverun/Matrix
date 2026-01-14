@@ -15,8 +15,17 @@ export class MatrixApiClient {
     // Helper to get cookie by name
     private getCookie(name: string): string | null {
         if (typeof document === 'undefined') return null;
-        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-        if (match) return match[2];
+
+        // More robust cookie parsing
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [cookieName, cookieValue] = cookie.split('=').map(c => c.trim());
+            if (cookieName === name) {
+                console.log(`[API] Found cookie ${name}:`, cookieValue?.substring(0, 10) + '...');
+                return cookieValue || null;
+            }
+        }
+        console.log(`[API] Cookie ${name} not found. Available cookies:`, document.cookie);
         return null;
     }
 
