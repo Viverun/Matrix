@@ -719,15 +719,15 @@ class AgentOrchestrator:
         # Auto-select based on target type
         if is_github_target:
             logger.info("GitHub target detected - forcing GitHub Security Agent only")
-            return [AgentNames.GITHUB] if AgentNames.GITHUB in self.agents else []
+            return [AgentNames.GITHUB] if AgentNames.GITHUB in self._agent_registry else []
         
         if agents_enabled is not None:
-            # Use explicitly enabled agents
-            return [name for name in agents_enabled if name in self.agents]
+            # Use explicitly enabled agents (check registry, not loaded agents)
+            return [name for name in agents_enabled if name in self._agent_registry]
 
-        # Default for web targets: Run all non-GitHub agents
+        # Default for web targets: Run all non-GitHub agents from registry
         return [
-            name for name in self.agents.keys()
+            name for name in self._agent_registry.keys()
             if name != AgentNames.GITHUB
         ]
 
