@@ -180,22 +180,23 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 # Configure CORS LAST (outer layer, runs first on request)
 # Note: allow_origins=["*"] with allow_credentials=True fails in many browsers.
 # We must specify exact origins.
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+origins = [origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()]
 
-if settings.debug:
-    # In debug mode, we might want to allow other local ports or tools
-    origins.extend([
-        "http://localhost:8000",
-        "http://127.0.0.1:8000"
-    ])
+if "*" in origins or settings.environment != "production":
+    allow_all = True
+    origins = ["*"]
+else:
+    allow_all = False
+    if settings.debug:
+        # In debug mode, we might want to allow other local ports or tools
+        for local_origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000"]:
+            if local_origin not in origins:
+                origins.append(local_origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=True if not ("*" in origins) else False, # Credentials cannot be used with "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )

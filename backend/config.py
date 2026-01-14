@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     
     # Redis
     redis_url: str = "redis://localhost:6379"
+
+    # Production Deployment
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    environment: str = "development" # production or development
     
     class Config:
         env_file = ".env"

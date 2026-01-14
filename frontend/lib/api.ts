@@ -2,7 +2,7 @@
  * API client for Matrix backend
  */
 
-const API_BASE = ''; // Force use of Next.js proxy
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 console.log('[API] Initialized with API_BASE:', API_BASE);
 
 interface ApiError {

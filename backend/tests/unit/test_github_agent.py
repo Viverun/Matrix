@@ -73,6 +73,7 @@ class TestSecretPatternDetection:
                 break
         
         assert matched, f"Pattern should match secret: {secret[:20]}..."
+        
         assert matched_name == expected_name, f"Expected {expected_name}, got {matched_name}"
 
     def test_jwt_token_detection(self):
