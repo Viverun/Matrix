@@ -38,8 +38,8 @@ export class MatrixApiClient {
             ...options.headers,
         };
 
-        // Inject CSRF Token from cookie
-        const csrfToken = this.getCookie('CSRF-TOKEN');
+        // Inject CSRF Token from memory (fallback to cookie)
+        const csrfToken = this.csrfToken || this.getCookie('CSRF-TOKEN');
         if (csrfToken) {
             console.log('[API] CSRF Token found, injecting into headers');
             (headers as any)['X-CSRF-Token'] = csrfToken;
@@ -111,8 +111,17 @@ export class MatrixApiClient {
         }
     }
 
+    // Store CSRF token in memory (since we can't read cross-origin cookies)
+    private csrfToken: string | null = null;
+
     async ensureCsrf() {
-        return this.request<{ status: string }>('/api/csrf/');
+        const response = await this.request<{ status: string; csrf_token?: string }>('/api/csrf/');
+        // Store the token from the response body
+        if (response.csrf_token) {
+            this.csrfToken = response.csrf_token;
+            console.log('[API] CSRF token received and stored:', this.csrfToken.substring(0, 10) + '...');
+        }
+        return response;
     }
 
     // Auth endpoints

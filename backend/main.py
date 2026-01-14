@@ -265,9 +265,17 @@ async def health_check():
 
 
 @app.get("/api/csrf/", tags=["Security"])
-async def get_csrf_init():
+async def get_csrf_init(request: Request):
     """Endpoint to initialize CSRF cookie for the frontend."""
-    return {"status": "CSRF initialized", "app": settings.app_name, "version": "1.0.0"}
+    # Get the CSRF token from the cookie (it was set by the middleware)
+    csrf_token = request.cookies.get("CSRF-TOKEN", "")
+    
+    return {
+        "status": "CSRF initialized",
+        "csrf_token": csrf_token,  # Return in body for JavaScript to read
+        "app": settings.app_name,
+        "version": "1.0.0"
+    }
 
 
 # API info endpoint
