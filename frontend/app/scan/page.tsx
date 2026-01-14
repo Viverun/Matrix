@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
-import { api, Scan, Vulnerability } from '../../lib/api';
+import { api, Scan, Vulnerability } from '../../lib/matrix_api';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Navbar } from '../../components/Navbar';

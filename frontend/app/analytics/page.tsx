@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { Navbar } from '../../components/Navbar';
-import { api, Scan, Vulnerability } from '../../lib/api';
+import { api, Scan, Vulnerability } from '../../lib/matrix_api';
 
 export default function AnalyticsPage() {
     const { user } = useAuth();
@@ -41,7 +41,7 @@ export default function AnalyticsPage() {
     // Filter scans based on time range, search, and status
     const filteredScans = useMemo(() => {
         let result = [...scans];
-        
+
         // Time range filter
         if (timeRange !== 'All') {
             const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
@@ -49,21 +49,21 @@ export default function AnalyticsPage() {
             cutoff.setDate(cutoff.getDate() - days);
             result = result.filter(s => new Date(s.created_at) >= cutoff);
         }
-        
+
         // Search filter
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
-            result = result.filter(s => 
+            result = result.filter(s =>
                 s.target_url.toLowerCase().includes(query) ||
                 s.target_name?.toLowerCase().includes(query)
             );
         }
-        
+
         // Status filter
         if (selectedStatus !== 'all') {
             result = result.filter(s => s.status === selectedStatus);
         }
-        
+
         return result;
     }, [scans, timeRange, searchQuery, selectedStatus]);
 
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {/* Security Score Circle */}
                             <div className="flex items-center gap-6">
                                 <div className="relative">
@@ -229,22 +229,20 @@ export default function AnalyticsPage() {
                     <div className="flex items-center gap-4 mb-8 border-b border-warm-200">
                         <button
                             onClick={() => setActiveTab('overview')}
-                            className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 -mb-[2px] ${
-                                activeTab === 'overview'
+                            className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 -mb-[2px] ${activeTab === 'overview'
                                     ? 'text-accent-primary border-accent-primary'
                                     : 'text-text-muted border-transparent hover:text-text-primary'
-                            }`}
+                                }`}
                         >
                             <BarChart3 className="w-4 h-4 inline mr-2" />
                             Overview
                         </button>
                         <button
                             onClick={() => setActiveTab('reports')}
-                            className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 -mb-[2px] ${
-                                activeTab === 'reports'
+                            className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 -mb-[2px] ${activeTab === 'reports'
                                     ? 'text-accent-primary border-accent-primary'
                                     : 'text-text-muted border-transparent hover:text-text-primary'
-                            }`}
+                                }`}
                         >
                             <FileText className="w-4 h-4 inline mr-2" />
                             Full Scan Reports
@@ -264,7 +262,7 @@ export default function AnalyticsPage() {
                                 className="w-full pl-12 pr-4 py-3 bg-white border border-warm-200 rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary transition-all"
                             />
                         </div>
-                        
+
                         {/* Status Filter */}
                         <select
                             value={selectedStatus}
@@ -284,11 +282,10 @@ export default function AnalyticsPage() {
                                 <button
                                     key={range}
                                     onClick={() => setTimeRange(range)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                                        timeRange === range
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${timeRange === range
                                             ? 'bg-accent-primary text-white shadow'
                                             : 'text-text-muted hover:text-accent-primary hover:bg-warm-50'
-                                    }`}
+                                        }`}
                                 >
                                     {range}
                                 </button>
@@ -403,7 +400,7 @@ export default function AnalyticsPage() {
                                         });
                                         const totalVulns = targetScans.reduce((sum, s) => sum + (s.total_vulnerabilities || 0), 0);
                                         const criticals = targetScans.reduce((sum, s) => sum + (s.critical_count || 0), 0);
-                                        
+
                                         return (
                                             <div key={i} className="p-4 bg-warm-50 rounded-xl border border-warm-100 hover:border-accent-primary/30 transition-all">
                                                 <div className="flex items-center gap-3 mb-3">

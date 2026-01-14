@@ -7,7 +7,7 @@ import {
     ExternalLink, Fingerprint, EyeOff, AlertCircle,
     Shield
 } from 'lucide-react';
-import { Scan, Vulnerability } from '@/lib/api';
+import { Scan, Vulnerability } from '@/lib/matrix_api';
 
 interface SecurityScanViewProps {
     scan: Scan;

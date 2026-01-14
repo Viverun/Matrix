@@ -9,7 +9,7 @@ interface ApiError {
     detail: string;
 }
 
-class ApiClient {
+export class MatrixApiClient {
     // No explicit token management needed - handled by HttpOnly cookies
 
     // Helper to get cookie by name
@@ -325,4 +325,4 @@ export interface Vulnerability {
 }
 
 // Export singleton instance
-export const api = new ApiClient();
+export const api: MatrixApiClient = new MatrixApiClient();

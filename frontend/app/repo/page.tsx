@@ -20,7 +20,7 @@ import Image from 'next/image';
 import { SpiderWeb } from '../../components/SpiderWeb';
 import { Navbar } from '../../components/Navbar';
 import { useAuth } from '../../context/AuthContext';
-import { api, Scan, Vulnerability } from '../../lib/api';
+import { api, Scan, Vulnerability } from '../../lib/matrix_api';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

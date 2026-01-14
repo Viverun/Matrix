@@ -4,7 +4,7 @@ import React from 'react';
 import { usePDF } from '@react-pdf/renderer';
 import { FileText, Loader2 } from 'lucide-react';
 import { PDFReport } from '@/components/PDFReport';
-import { Scan, Vulnerability } from '@/lib/api';
+import { Scan, Vulnerability } from '@/lib/matrix_api';
 import { useMemo } from 'react';
 
 interface ScanPDFExportButtonProps {

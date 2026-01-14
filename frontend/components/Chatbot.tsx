@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
-import { api } from '../lib/api';
+import { api } from '../lib/matrix_api';
 
 interface Message {
     role: 'user' | 'assistant';

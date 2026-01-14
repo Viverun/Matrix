@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { api, User } from '../lib/api'; // Import api client and User type
+import { api, User } from '../lib/matrix_api'; // Import api client and User type
 
 
 

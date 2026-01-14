@@ -6,7 +6,7 @@ import {
     Terminal, Cpu, FileCode, Globe, Clock,
     ExternalLink, Fingerprint, EyeOff, AlertCircle
 } from 'lucide-react';
-import { Scan, Vulnerability } from '@/lib/api';
+import { Scan, Vulnerability } from '@/lib/matrix_api';
 
 interface RepoScanViewProps {
     scan: Scan;

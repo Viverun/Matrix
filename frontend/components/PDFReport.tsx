@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Svg, Path, G, Rect } from '@react-pdf/renderer';
-import { Vulnerability, Scan } from '@/lib/api';
+import { Vulnerability, Scan } from '@/lib/matrix_api';
 
 // ============================================================================
 // TYPES & INTERFACES

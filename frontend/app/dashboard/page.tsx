@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { LogOut } from 'lucide-react';
 
-import { api, Scan } from '../../lib/api';
+import { api, Scan } from '../../lib/matrix_api';
 
 import { Navbar } from '../../components/Navbar';
 
@@ -261,8 +261,8 @@ export default function DashboardPage() {
                                         </div>
 
                                         <div className={`p-4 rounded-xl border ${stats.criticalVulnerabilities === 0
-                                                ? 'bg-green-500/5 border-green-500/10'
-                                                : 'bg-red-500/5 border-red-500/10'
+                                            ? 'bg-green-500/5 border-green-500/10'
+                                            : 'bg-red-500/5 border-red-500/10'
                                             }`}>
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Activity className={`w-5 h-5 ${stats.criticalVulnerabilities === 0 ? 'text-green-600' : 'text-red-600'}`} />

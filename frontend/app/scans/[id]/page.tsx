@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { SpiderWeb } from '@/components/SpiderWeb';
 import { useAuth } from '@/context/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { api, Scan, Vulnerability } from '@/lib/api';
+import { api, Scan, Vulnerability } from '@/lib/matrix_api';
 import { Navbar } from '@/components/Navbar';
 import dynamic from 'next/dynamic';
 import { RepoScanView } from '@/components/RepoScanView';
