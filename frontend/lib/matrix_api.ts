@@ -227,7 +227,7 @@ export class MatrixApiClient {
     }
 
     // Chat endpoint
-    async sendChatMessage(message: string, _scanResults?: string, scanId?: number) {
+    async chat(message: string, scanId?: number) {
         return this.request<{
             response: string;
             metadata?: any;

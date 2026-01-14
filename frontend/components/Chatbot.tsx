@@ -55,7 +55,7 @@ export function Chatbot({ scanResults, scanId, isOpen, onClose }: ChatbotProps) 
         setIsLoading(true);
 
         try {
-            const response = await api.sendChatMessage(msg, scanResults, scanId);
+            const response = await api.chat(msg, scanId);
 
             const aiMsg: Message = {
                 role: 'assistant',
