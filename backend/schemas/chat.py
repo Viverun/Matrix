@@ -8,3 +8,4 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     metadata: Optional[Dict] = None
+    suggested_questions: Optional[List[str]] = None

@@ -227,13 +227,20 @@ class ApiClient {
     }
 
     // Chat endpoint
-    async chat(message: string, scanId?: number) {
+    async sendChatMessage(message: string, _scanResults?: string, scanId?: number) {
         return this.request<{
             response: string;
             metadata?: any;
+            suggested_questions: string[];
         }>('/api/chat/', {
             method: 'POST',
             body: JSON.stringify({ message, scan_id: scanId }),
+        });
+    }
+
+    async resetChat() {
+        return this.request<{ status: string }>('/api/chat/reset/', {
+            method: 'POST',
         });
     }
 }

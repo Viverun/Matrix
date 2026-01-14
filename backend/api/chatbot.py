@@ -85,7 +85,8 @@ async def chat_with_matrix(
         
         return ChatResponse(
             response=response_text,
-            metadata=chatbot.get_conversation_metadata()
+            metadata=chatbot.get_conversation_metadata(),
+            suggested_questions=chatbot.get_suggested_questions()
         )
         
     except Exception as e:
@@ -94,3 +95,9 @@ async def chat_with_matrix(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Chatbot failed: {str(e)}"
         )
+
+@router.post("/reset")
+async def reset_chatbot(current_user: User = Depends(get_current_user)):
+    """Reset the current chatbot conversation history."""
+    chatbot.reset_conversation()
+    return {"status": "ok", "message": "Conversation reset"}
