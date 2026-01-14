@@ -265,14 +265,29 @@ async def health_check():
 
 
 @app.get("/api/csrf/", tags=["Security"])
-async def get_csrf_init(request: Request):
+async def get_csrf_init(request: Request, response: Response):
     """Endpoint to initialize CSRF cookie for the frontend."""
-    # Get the CSRF token from the cookie (it was set by the middleware)
-    csrf_token = request.cookies.get("CSRF-TOKEN", "")
+    from core.security import create_csrf_token, verify_csrf_token
+    
+    # Check if we have a valid token in request cookies
+    csrf_token = request.cookies.get("CSRF-TOKEN")
+    
+    # If not valid, generate a new one
+    if not csrf_token or not verify_csrf_token(csrf_token):
+        csrf_token = create_csrf_token()
+        # Also set it as a cookie for browsers that DO allow them
+        response.set_cookie(
+            key="CSRF-TOKEN",
+            value=csrf_token,
+            httponly=False,
+            samesite="none",
+            secure=True,
+            path="/"
+        )
     
     return {
         "status": "CSRF initialized",
-        "csrf_token": csrf_token,  # Return in body for JavaScript to read
+        "csrf_token": csrf_token,  # Crucial: Return in body for JS
         "app": settings.app_name,
         "version": "1.0.0"
     }
