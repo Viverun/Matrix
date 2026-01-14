@@ -68,21 +68,21 @@ async def register(response: Response, user_data: UserCreate, db: AsyncSession =
     access_token = create_access_token(data={"sub": str(new_user.id)})
     refresh_token = create_refresh_token(data={"sub": str(new_user.id)})
     
-    # Set HttpOnly cookies
+    # Set HttpOnly cookies with cross-origin support
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
+        secure=True,  # Required for SameSite=None
+        samesite="none",
         max_age=settings.access_token_expire_minutes * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=7 * 24 * 60 * 60  # 7 days
     )
     
@@ -129,21 +129,21 @@ async def login(request: Request, response: Response, credentials: UserLogin, db
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
     
-    # Set HttpOnly cookies
+    # Set HttpOnly cookies with cross-origin support
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=not settings.debug,  # Secure in production
-        samesite="lax",  # Lax is better for navigation, Strict might break some flows. Plan said Strict but Lax is safer for initial login redirects if any. Actually Strict is fine for API.
+        secure=True,  # Required for SameSite=None
+        samesite="none",
         max_age=settings.access_token_expire_minutes * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=not settings.debug,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=7 * 24 * 60 * 60  # 7 days
     )
     
@@ -210,21 +210,21 @@ async def refresh_token(request: Request, response: Response, db: AsyncSession =
         new_access_token = create_access_token(data={"sub": str(user.id)})
         new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
         
-        # Update cookies
+        # Update cookies with cross-origin support
         response.set_cookie(
             key="access_token",
             value=new_access_token,
             httponly=True,
-            secure=not settings.debug,
-            samesite="lax",
+            secure=True,
+            samesite="none",
             max_age=settings.access_token_expire_minutes * 60
         )
         response.set_cookie(
             key="refresh_token",
             value=new_refresh_token,
             httponly=True,
-            secure=not settings.debug,
-            samesite="lax",
+            secure=True,
+            samesite="none",
             max_age=7 * 24 * 60 * 60
         )
         
@@ -244,6 +244,6 @@ async def refresh_token(request: Request, response: Response, db: AsyncSession =
 @router.post("/logout/")
 async def logout(response: Response):
     """Logout user by clearing cookies."""
-    response.delete_cookie(key="access_token", httponly=True, secure=not settings.debug, samesite="lax")
-    response.delete_cookie(key="refresh_token", httponly=True, secure=not settings.debug, samesite="lax")
+    response.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
+    response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="none")
     return {"message": "Logged out successfully"}
