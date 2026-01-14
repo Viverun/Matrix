@@ -50,6 +50,9 @@ export default function ScanPage() {
     const [wafEvasionConsent, setWafEvasionConsent] = useState(false);
     const [showWafWarningModal, setShowWafWarningModal] = useState(false);
 
+    // Pre-scan warning modal
+    const [showPreScanWarning, setShowPreScanWarning] = useState(false);
+
 
     // Load scan from URL on page mount
     useEffect(() => {
@@ -89,8 +92,23 @@ export default function ScanPage() {
         setTerminalLogs(prev => [...prev.slice(-15), { type, message }]);
     };
 
+    const handleScanButtonClick = () => {
+        if (!targetUrl) return;
+
+        // Check if user has seen warning (session storage)
+        const hasSeenWarning = sessionStorage.getItem('matrix_scan_warning_seen');
+        if (!hasSeenWarning) {
+            setShowPreScanWarning(true);
+        } else {
+            handleStartScan();
+        }
+    };
+
     const handleStartScan = async () => {
         if (!targetUrl) return;
+
+        setShowPreScanWarning(false);
+        sessionStorage.setItem('matrix_scan_warning_seen', 'true');
 
         setIsScanning(true);
         setScanProgress(0);
@@ -335,7 +353,7 @@ export default function ScanPage() {
                                     />
                                 </div>
                                 <button
-                                    onClick={handleStartScan}
+                                    onClick={handleScanButtonClick}
                                     disabled={!targetUrl || isScanning}
                                     className="px-6 py-3 bg-emerald-700 text-white font-medium rounded-md text-sm hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap shadow-md"
                                 >
@@ -986,6 +1004,149 @@ export default function ScanPage() {
                                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Enable WAF Evasion
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Pre-Scan Warning Modal */}
+            {showPreScanWarning && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-blue-50 border-b border-blue-200 p-5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <AlertTriangle className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">Scanner Best Practices</h3>
+                                    <p className="text-xs text-blue-700">Optimize your scan results</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 space-y-4">
+                            <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+                                <p className="text-sm text-amber-900 font-semibold mb-2">⚠️ Scanning Production Applications</p>
+                                <p className="text-sm text-amber-800 leading-relaxed">
+                                    This scanner is optimized for <strong>less mature applications</strong> and development targets.
+                                    Production-grade sites (like Instagram, Facebook, Google) have aggressive rate limiting
+                                    that may result in:
+                                </p>
+                                <ul className="text-sm text-amber-800 mt-2 space-y-1 ml-4">
+                                    <li>• <strong>False positives</strong> from rate limit responses</li>
+                                    <li>• <strong>Very slow scans</strong> (10+ minutes per site)</li>
+                                    <li>• <strong>Incomplete results</strong> due to timeouts</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                                <p className="text-sm text-green-900 font-semibold mb-2">✅ Best Results On</p>
+                                <ul className="text-sm text-green-800 space-y-1">
+                                    <li>• Small business websites</li>
+                                    <li>• Internal/enterprise tools</li>
+                                    <li>• Startup MVPs</li>
+                                    <li>• Legacy applications</li>
+                                    <li>• Development environments</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                                <p className="text-sm text-blue-900 font-semibold mb-2">🎯 Try the Demo Site</p>
+                                <p className="text-sm text-blue-800 mb-3">
+                                    Test the scanner on a purposely vulnerable application:
+                                </p>
+                                <button
+                                    onClick={async () => {
+                                        setShowPreScanWarning(false);
+                                        sessionStorage.setItem('matrix_scan_warning_seen', 'true');
+                                        setTargetUrl('https://pentest-ground.com:4280');
+
+                                        // Small delay for state update
+                                        setTimeout(async () => {
+                                            const demoUrl = 'https://pentest-ground.com:4280';
+                                            setIsScanning(true);
+                                            setScanProgress(0);
+                                            setScanResults(null);
+                                            setFindings([]);
+                                            setError(null);
+                                            setTerminalLogs([]);
+
+                                            try {
+                                                const newScan = await api.createScan({
+                                                    target_url: demoUrl,
+                                                    scan_type: 'FULL',
+                                                    enable_waf_evasion: enableWafEvasion,
+                                                    waf_evasion_consent: wafEvasionConsent
+                                                });
+
+                                                setScanResults(newScan);
+
+                                                // Polling
+                                                let failures = 0;
+                                                const interval = setInterval(async () => {
+                                                    try {
+                                                        const statusUpdate = await api.getScan(newScan.id);
+                                                        failures = 0;
+                                                        setScanProgress(statusUpdate.progress);
+                                                        setScanResults(statusUpdate);
+
+                                                        if (statusUpdate.status === 'completed') {
+                                                            clearInterval(interval);
+                                                            setIsScanning(false);
+                                                            const results = await api.getVulnerabilities(newScan.id);
+                                                            setFindings(results.items);
+                                                            router.push(`/scan?id=${newScan.id}`, { scroll: false });
+                                                        } else if (statusUpdate.status === 'failed' || statusUpdate.status === 'cancelled') {
+                                                            clearInterval(interval);
+                                                            setIsScanning(false);
+                                                            setError(statusUpdate.error_message || 'Scan failed');
+                                                        }
+                                                    } catch {
+                                                        failures++;
+                                                        if (failures >= 3) {
+                                                            clearInterval(interval);
+                                                            setIsScanning(false);
+                                                            setError('Lost connection');
+                                                        }
+                                                    }
+                                                }, 2000);
+                                            } catch (err: any) {
+                                                setIsScanning(false);
+                                                setError(err.message || 'Failed to start demo scan');
+                                            }
+                                        }, 100);
+                                    }}
+                                    className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
+                                >
+                                    <Zap className="w-4 h-4" />
+                                    Start Demo Scan Now
+                                </button>
+                                <p className="text-xs text-blue-600 mt-2 text-center font-mono">
+                                    pentest-ground.com:4280
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex gap-3 p-4 bg-gray-50 border-t border-gray-200">
+                            <button
+                                onClick={() => setShowPreScanWarning(false)}
+                                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    sessionStorage.setItem('matrix_scan_warning_seen', 'true');
+                                    handleStartScan();
+                                }}
+                                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+                            >
+                                I Understand, Proceed Anyway
                             </button>
                         </div>
                     </div>
