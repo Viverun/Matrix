@@ -53,10 +53,16 @@ class DatabaseConfig:
             return
             
         try:
-            logger.info(f"Initializing database engine: {self._get_safe_url()}")
+            # Ensure the database URL uses an async driver for PostgreSQL
+            db_url = settings.database_url
+            if db_url.startswith("postgresql://"):
+                db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                logger.info("Automatically added +asyncpg to DATABASE_URL for compatibility")
+            
+            logger.info(f"Initializing database engine: {self._get_safe_url(db_url)}")
             
             # Determine if using SQLite (doesn't support pooling args)
-            is_sqlite = "sqlite" in settings.database_url.lower()
+            is_sqlite = "sqlite" in db_url.lower()
             
             # Engine configuration - SQLite doesn't support pool settings
             engine_args = {
@@ -75,7 +81,7 @@ class DatabaseConfig:
                 })
             
             self.engine = create_async_engine(
-                settings.database_url,
+                db_url,
                 **engine_args
             )
             
@@ -132,14 +138,19 @@ class DatabaseConfig:
             finally:
                 cursor.close()
     
-    def _get_safe_url(self) -> str:
+    def _get_safe_url(self, url: str = None) -> str:
         """
         Get database URL with credentials masked for logging.
         
+        Args:
+            url: Optional URL to mask. If not provided, uses settings.database_url.
+            
         Returns:
             Database URL with password replaced by asterisks.
         """
-        url = settings.database_url
+        if url is None:
+            url = settings.database_url
+            
         if "@" in url:
             # Mask password in URL (e.g., postgresql://user:***@host/db)
             parts = url.split("@")

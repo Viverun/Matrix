@@ -88,8 +88,10 @@ def main():
     queues = [Queue(name, connection=redis_conn) for name in args.queues]
     logger.info(f"Worker will process queues: {args.queues}")
     
-    # Generate worker name
-    worker_name = args.name or f"matrix-worker-{os.getpid()}"
+    # Generate worker name - add random suffix to ensure uniqueness during restarts
+    import uuid
+    worker_id = f"{os.getpid()}-{str(uuid.uuid4())[:8]}"
+    worker_name = args.name or f"matrix-worker-{worker_id}"
     
     # Print banner
     print("\n" + "=" * 60)
