@@ -952,7 +952,11 @@ class AgentOrchestrator:
         }
 
         for agent_name in agent_names:
-            if agent_name in self.agent_nodes:
+            # Check registry first (for lazy loading), then loaded nodes
+            if agent_name in self._agent_registry:
+                phase = self._agent_registry[agent_name]["phase"]
+                phases[phase].append(agent_name)
+            elif agent_name in self.agent_nodes:
                 node = self.agent_nodes[agent_name]
                 phases[node.phase].append(agent_name)
 
