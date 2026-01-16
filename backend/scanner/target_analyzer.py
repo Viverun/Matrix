@@ -215,15 +215,17 @@ class TargetAnalyzer:
     # API documentation paths
     API_DOC_PATHS = [
         "/swagger.json", "/swagger.yml", "/swagger.yaml",
+        "/swagger-ui.json", "/swagger-ui.yml", "/swagger-ui.yaml",
         "/openapi.json", "/openapi.yml", "/openapi.yaml",
-        "/api-docs", "/api-docs.json", "/api/docs",
+        "/api-docs", "/api-docs.json", "/api/docs", "/v1/api-docs",
         "/v2/api-docs", "/v3/api-docs",
-        "/swagger-ui.html", "/swagger-ui/",
-        "/docs", "/documentation",
+        "/swagger-ui.html", "/swagger-ui/", "/swagger",
+        "/docs", "/documentation", "/api/v1/docs",
         "/redoc", "/rapidoc",
         "/.well-known/security.txt",
         "/graphql", "/graphiql",
         "/api/swagger.json", "/api/openapi.json",
+        "/assets/swagger.json", "/static/swagger.json",
     ]
     
     # Patterns for extracting endpoints from JavaScript
@@ -238,7 +240,9 @@ class TargetAnalyzer:
         r'request\s*\(["\']([^"\')]+)',              # Generic request
         r'endpoint\s*[:=]\s*["\']([^"\')]+)',        # endpoint variable
         r'url\s*[:=]\s*["\']([^"\')]+)',             # url variable
-        r'"((?:/api|/rest|/graphql)[a-zA-Z0-9/_-]+)"', # API paths
+        r'["\']/(api/v[0-9]/[^"\'\s<>{}]+)["\']',     # /api/v1/*
+        r'["\']/(rest/v[0-9]/[^"\'\s<>{}]+)["\']',    # /rest/v1/*
+        r'path\s*[:=]\s*["\']([^"\')]+)',              # path variable
     ]
     
     def __init__(
@@ -581,50 +585,75 @@ class TargetAnalyzer:
             
             forms.append(form_data)
         
-        # Detect modern SPA forms (buttons with event handlers)
+        # Detect modern SPA forms (buttons with event handlers or semantic keywords)
         # Look for login/submit buttons that might be part of SPA forms
-        for button in soup.find_all(["button", "input"], type=["submit", "button"]):
-            # Check if button has onClick or similar handlers
-            if button.get("onclick") or button.get("data-action"):
-                button_text = button.get_text(strip=True).lower()
-                button_id = button.get("id", "").lower()
+        for button in soup.find_all(["button", "input", "a"]):
+            # Filter for buttons and potential trigger inputs
+            b_type = (button.get("type") or "").lower()
+            if button.name == "input" and b_type not in ["submit", "button", "image"]:
+                continue
+            if button.name == "a" and not (button.get("onclick") or button.get("href") == "#" or button.get("data-action")):
+                # Link must look like a button/trigger
+                if not any(kw in button.get_text(strip=True).lower() for kw in ["login", "sign", "auth"]):
+                    continue
+            button_text = button.get_text(strip=True).lower()
+            button_id = (button.get("id") or "").lower()
+            button_class = " ".join(button.get("class") or []).lower()
+            
+            # Check if it looks like a submission trigger
+            is_trigger = (
+                button.get("onclick") or 
+                button.get("data-action") or 
+                any(kw in button_text or kw in button_id or kw in button_class
+                    for kw in ["login", "signin", "sign-in", "sign in", "log-in", "log in", "submit", "register", "signup", "auth"])
+            )
+            
+            if is_trigger:
+                # Find nearby input fields (within the same container or nearby)
+                parent = button.parent
+                inputs = []
+                # Search up to 3 levels up for a container
+                for _ in range(3):
+                    if not parent: break
+                    inputs = parent.find_all(["input", "textarea", "select"])
+                    # If we found at least one input, we stop searching
+                    if inputs: break
+                    parent = parent.parent
                 
-                # Look for login/submit patterns
-                if any(keyword in button_text or keyword in button_id 
-                       for keyword in ["login", "signin", "submit", "register", "signup"]):
+                if inputs:
+                    # Filter for visible/interactable inputs
+                    interactable_inputs = [i for i in inputs if i.get("type", "text") not in ["hidden", "submit", "button"]]
                     
-                    # Find nearby inputs
-                    parent = button.find_parent(["div", "section", "main"])
-                    if parent:
-                        inputs = parent.find_all("input")
-                        if inputs:
-                            form_data = {
-                                "action": base_url,
-                                "method": "POST",
-                                "inputs": [],
-                                "has_file_upload": False,
-                                "has_password": False,
-                                "form_type": "spa",
-                            }
+                    if interactable_inputs:
+                        form_data = {
+                            "action": base_url,
+                            "method": "POST",
+                            "inputs": [],
+                            "has_file_upload": False,
+                            "has_password": False,
+                            "form_type": "spa",
+                            "trigger_text": button_text
+                        }
+                        
+                        for input_elem in interactable_inputs:
+                            input_type = input_elem.get("type", "text")
+                            input_name = input_elem.get("name") or input_elem.get("id") or input_elem.get("placeholder", "").replace(" ", "_").lower()
                             
-                            for input_elem in inputs:
-                                input_type = input_elem.get("type", "text")
-                                input_name = input_elem.get("name") or input_elem.get("id", "")
-                                
-                                if input_name:
-                                    form_data["inputs"].append({
-                                        "name": input_name,
-                                        "type": input_type,
-                                        "value": input_elem.get("value", ""),
-                                        "required": input_elem.has_attr("required"),
-                                        "placeholder": input_elem.get("placeholder", ""),
-                                    })
-                                
-                                if input_type == "password":
-                                    form_data["has_password"] = True
+                            if input_name:
+                                form_data["inputs"].append({
+                                    "name": input_name,
+                                    "type": input_type,
+                                    "value": input_elem.get("value", ""),
+                                    "required": input_elem.has_attr("required"),
+                                    "placeholder": input_elem.get("placeholder", ""),
+                                })
                             
-                            if form_data["inputs"]:
-                                forms.append(form_data)
+                            if input_type == "password":
+                                form_data["has_password"] = True
+                        
+                        # Avoid duplicate SPA forms on same page
+                        if not any(f["inputs"] == form_data["inputs"] for f in forms):
+                            forms.append(form_data)
         
         return forms
     
@@ -901,8 +930,8 @@ class TargetAnalyzer:
                     if not response:
                         return script_endpoints
                     
-                    # Limit content size
-                    content = response.text[:500000]  # First 500KB
+                    # Limit content size - increased for modern SPA bundles
+                    content = response.text[:2000000]  # First 2MB
                     
                     # Extract endpoints using patterns
                     for pattern in self.JS_ENDPOINT_PATTERNS:

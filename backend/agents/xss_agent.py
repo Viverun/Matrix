@@ -216,7 +216,11 @@ class XSSAgent(BaseSecurityAgent, WAFEvasionMixin):
         'sessionStorage': 'Session storage',
         'document.location': 'Document location',
         'location.href': 'Location href',
-        'postMessage': 'Cross-origin messages'
+        'postMessage': 'Cross-origin messages',
+        'window.location': 'Window location',
+        'URLSearchParams': 'URL parameters API',
+        'xhr.responseText': 'XMLHttpRequest response',
+        'fetch.response': 'Fetch API response'
     }
 
     DOM_SINKS = [
@@ -235,6 +239,14 @@ class XSSAgent(BaseSecurityAgent, WAFEvasionMixin):
         r"location\.assign\s*\(",
         r"\.src\s*=",
         r"\.setAttribute\s*\(\s*['\"]onclick['\"]",
+        r"\.setAttribute\s*\(\s*['\"]src['\"]",
+        r"jQuery\s*\(",
+        r"\$\s*\(",
+        r"\.append\s*\(",
+        r"\.prepend\s*\(",
+        r"\.before\s*\(",
+        r"\.after\s*\(",
+        r"\.html\s*\(",
     ]
 
     def __init__(self, config: Optional[XSSAgentConfig] = None, **kwargs):
@@ -711,12 +723,18 @@ class XSSAgent(BaseSecurityAgent, WAFEvasionMixin):
 
             # Skip if no parameters
             if not params:
-                # Still check for DOM XSS
-                dom_result = await self._check_dom_xss(url)
-                if dom_result:
-                    results.append(dom_result)
-                    vuln_count += 1
-                continue
+                # Parameter guessing for high-interest endpoints
+                interesting_paths = ["search", "query", "user", "profile", "article", "item", "page", "redirect", "login"]
+                if any(keyword in url.lower() for keyword in interesting_paths):
+                    logger.info(f"Guessing parameters for interesting endpoint: {url}")
+                    params = {"id": "1", "q": "test", "query": "test", "name": "test", "url": "http://example.com"}
+                else:
+                    # Still check for DOM XSS
+                    dom_result = await self._check_dom_xss(url)
+                    if dom_result:
+                        results.append(dom_result)
+                        vuln_count += 1
+                    continue
 
             tested_count += 1
             logger.info(f"Testing endpoint {tested_count}: {method} {url}")
