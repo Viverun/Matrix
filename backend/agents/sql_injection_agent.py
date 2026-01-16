@@ -383,6 +383,10 @@ class SQLInjectionAgent(BaseSecurityAgent):
             baseline_start = time.time()
             baseline_resp = await self.make_request(login_url, method="POST", json={"email": "nonexistent_matrix_user@test.com", "password": "password"})
             baseline_duration = time.time() - baseline_start
+            
+            # If baseline returns 500, we can still test for time-based/blind injection
+            if baseline_resp.status_code == 500:
+                self.log(f"Baseline returned 500 for {login_url}, proceeding with blind/time-based checks.")
 
             # Test each JSON payload
             for payload in SQLInjectionConfig.JSON_LOGIN_PAYLOADS:
