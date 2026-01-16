@@ -355,177 +355,19 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
             # First check if endpoint exists
             try:
+                self.log(f"Checking if {login_url} exists...")
                 check_response = await self.make_request(login_url, method="POST", json={})
                 if check_response is None:
+                    self.log(f"Endpoint check failed (No response): {login_url}")
                     continue
                 # Skip if 404
                 if check_response.status_code == 404:
+                    self.log(f"Endpoint returned 404: {login_url}")
                     continue
-            except Exception:
-                continue
-
-            self.log(f"Testing login endpoint: {login_url}")
-
-            # Test each JSON payload
-            for payload in SQLInjectionConfig.JSON_LOGIN_PAYLOADS:
-                try:
-                    response = await self.make_request(
-                        login_url,
-                        method="POST",
-                        json=payload,
-                        headers={"Content-Type": "application/json"}
-                    )
-
-                    if not response:
-                        continue
-
-                    response_text = response.text.lower()
-                    response_json = {}
-                    try:
-                        response_json = response.json() if response.text else {}
-                    except:
-                        pass
-
-                    # Indicators of successful SQL injection login bypass
-                    # 1. Response contains authentication token
-                    has_token = any(k in str(response_json).lower() for k in ['token', 'access', 'jwt', 'session', 'auth'])
-                    
-                    # 2. Response status is 200 (success) when it should fail
-                    is_success = response.status_code == 200
-                    
-                    # 3. Check for SQL error (indicates injection point)
-                    has_sql_error = any(pattern.search(response.text) for pattern in self.error_patterns)
-                    
-                    # 4. Response contains user data (bypass worked)
-                    has_user_data = any(k in str(response_json).lower() for k in ['email', 'user', 'id', 'admin'])
-
-                    if has_sql_error:
-                        # SQL error found - confirmed injection point
-                        return [self.create_result(
-                            vulnerability_type=VulnerabilityType.SQL_INJECTION,
-                            is_vulnerable=True,
-                            severity=Severity.CRITICAL,
-                            confidence=self.calculate_confidence(ConfidenceMethod.SPECIFIC_ERROR),
-                            detection_method="Error-based (JSON login)",
-                            audit_log=["Detected SQL error in response to logical bypass payload in JSON body"],
-                            url=login_url,
-                            parameter="email/username (JSON body)",
-                            method="POST",
-                            title="SQL Injection in Login Endpoint (Authentication Bypass)",
-                            description=(
-                                f"Critical SQL injection vulnerability in login endpoint. "
-                                f"The application exposes SQL errors when malicious input is provided. "
-                                f"This can allow attackers to bypass authentication entirely."
-                            ),
-                            evidence=f"Payload: {payload}\nSQL Error in response",
-                            remediation=(
-                                "1. Use parameterized queries for ALL database operations\n"
-                                "2. Never concatenate user input into SQL queries\n"
-                                "3. Implement input validation and sanitization\n"
-                                "4. Use an ORM with proper SQL escaping\n"
-                                "5. Apply least privilege to database accounts"
-                            ),
-                            owasp_category="A03:2021 – Injection",
-                            cwe_id="CWE-89",
-                            reference_links=[
-                                "https://owasp.org/Top10/A03_2021-Injection/",
-                                "https://portswigger.net/web-security/sql-injection"
-                            ],
-                            request_data={"payload": payload},
-                            response_snippet=response.text[:500],
-                            vulnerability_context=self._build_sqli_context(
-                                url=login_url,
-                                method="POST",
-                                parameter="email/username (JSON body)",
-                                detection_method="error_based",
-                                db_type=detected_db,
-                                is_auth_bypass=True
-                            )
-                        )]
-
-                    if is_success and has_token and has_user_data:
-                        # Successful authentication bypass!
-                        return [self.create_result(
-                            vulnerability_type=VulnerabilityType.SQL_INJECTION,
-                            is_vulnerable=True,
-                            severity=Severity.CRITICAL,
-                            # We logged in as admin without password -> Confirmed Exploit!
-                            confidence=self.calculate_confidence(ConfidenceMethod.CONFIRMED_EXPLOIT),
-                            detection_method="Error-based (JSON login)",
-                            audit_log=["Detected SQL error in response to logical bypass payload in JSON body"],
-                            url=login_url,
-                            parameter="email/username (JSON body)",
-                            method="POST",
-                            title="SQL Injection Authentication Bypass",
-                            description=(
-                                f"Critical SQL injection authentication bypass. "
-                                f"The login endpoint accepts SQL injection payloads that bypass authentication. "
-                                f"An attacker can login as any user without knowing their password."
-                            ),
-                            evidence=f"Payload: {payload}\nAuthentication token received without valid credentials!",
-                            remediation=(
-                                "1. Use parameterized queries for ALL database operations\n"
-                                "2. Never concatenate user input into SQL queries\n"
-                                "3. Implement proper password hashing and verification\n"
-                                "4. Use an ORM with proper SQL escaping\n"
-                                "5. Apply least privilege to database accounts"
-                            ),
-                            owasp_category="A03:2021 – Injection",
-                            cwe_id="CWE-89",
-                            reference_links=[
-                                "https://owasp.org/Top10/A03_2021-Injection/",
-                                "https://portswigger.net/web-security/sql-injection/lab-login-bypass"
-                            ],
-                            request_data={"payload": payload},
-                            response_snippet=response.text[:500],
-                            vulnerability_context=self._build_sqli_context(
-                                url=login_url,
-                                method="POST",
-                                parameter="email/username (JSON body)",
-                                detection_method="auth_bypass",
-                                db_type=detected_db,
-                                is_auth_bypass=True
-                            )
-                        )]
-
-                except Exception as e:
-                    self.log(f"Login test error for {login_url}: {str(e)}", level="error")
-
-        return results
-        """
-        Test common login endpoints for SQL injection with JSON payloads.
-
-        This specifically targets authentication bypass vulnerabilities in
-        login forms that accept JSON POST requests.
-
-        Args:
-            target_url: Base target URL
-            scan_context: Shared scan context
-            detected_db: Detected database type
-
-        Returns:
-            List of detected vulnerabilities
-        """
-        results = []
-
-        # Parse base URL
-        parsed = urlparse(target_url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
-
-        self.log(f"Testing login endpoints for SQL injection...")
-
-        for login_path in SQLInjectionConfig.LOGIN_ENDPOINTS:
-            login_url = urljoin(base_url, login_path)
-
-            # First check if endpoint exists
-            try:
-                check_response = await self.make_request(login_url, method="POST", json={})
-                if check_response is None:
-                    continue
-                # Skip if 404
-                if check_response.status_code == 404:
-                    continue
-            except Exception:
+                
+                self.log(f"Endpoint exists (Status {check_response.status_code}): {login_url}")
+            except Exception as e:
+                self.log(f"Endpoint check exception for {login_url}: {e}")
                 continue
 
             self.log(f"Testing login endpoint: {login_url}")

@@ -768,7 +768,10 @@ class TargetAnalyzer:
             
             try:
                 response = await self._fetch_with_error_handling(full_url, method="HEAD", timeout=5.0)
-                if response and response.status_code < 400:
+                # Accept success (2xx), redirects (3xx), and specific client errors that indicate existence
+                # 401/403: Exists but needs auth
+                # 405: Exists but wrong method (e.g. POST required)
+                if response and (response.status_code < 400 or response.status_code in [401, 403, 405]):
                     self.visited_urls.add(base_check_url)
                     
                     # Parse query parameters from the path
