@@ -230,9 +230,9 @@ class TargetAnalyzer:
     
     # Patterns for extracting endpoints from JavaScript
     JS_ENDPOINT_PATTERNS = [
-        r'["\']/(api/[^"\'\s<>{}]+)["\']',           # /api/*
-        r'["\']/(rest/[^"\'\s<>{}]+)["\']',          # /rest/*
-        r'["\']/(graphql)["\']',                      # GraphQL
+        r'["\']/?(api/[^"\'\s<>{}]+)["\']',           # /api/* or api/*
+        r'["\']/?(rest/[^"\'\s<>{}]+)["\']',          # /rest/* or rest/*
+        r'["\']/?(graphql)["\']',                      # /graphql or graphql
         r'fetch\s*\(["\']([^"\')]+)["\']',           # fetch() calls
         r'axios\.[a-z]+\s*\(["\']([^"\')]+)',       # axios calls
         r'\.ajax\s*\(\s*\{[^}]*url\s*:\s*["\']([^"\')]+)', # jQuery ajax
@@ -240,8 +240,8 @@ class TargetAnalyzer:
         r'request\s*\(["\']([^"\')]+)',              # Generic request
         r'endpoint\s*[:=]\s*["\']([^"\')]+)',        # endpoint variable
         r'url\s*[:=]\s*["\']([^"\')]+)',             # url variable
-        r'["\']/(api/v[0-9]/[^"\'\s<>{}]+)["\']',     # /api/v1/*
-        r'["\']/(rest/v[0-9]/[^"\'\s<>{}]+)["\']',    # /rest/v1/*
+        r'["\']/?(api/v[0-9]/[^"\'\s<>{}]+)["\']',     # /api/v1/*
+        r'["\']/?(rest/v[0-9]/[^"\'\s<>{}]+)["\']',    # /rest/v1/*
         r'path\s*[:=]\s*["\']([^"\')]+)',              # path variable
     ]
     
@@ -601,11 +601,15 @@ class TargetAnalyzer:
             button_class = " ".join(button.get("class") or []).lower()
             
             # Check if it looks like a submission trigger
+            is_login_trigger = any(kw in button_text or kw in button_id or kw in button_class
+                    for kw in ["login", "signin", "sign-in", "sign in", "log-in", "log in", "auth"])
+
             is_trigger = (
                 button.get("onclick") or 
                 button.get("data-action") or 
+                is_login_trigger or
                 any(kw in button_text or kw in button_id or kw in button_class
-                    for kw in ["login", "signin", "sign-in", "sign in", "log-in", "log in", "submit", "register", "signup", "auth"])
+                    for kw in ["submit", "register", "signup"])
             )
             
             if is_trigger:
@@ -625,6 +629,29 @@ class TargetAnalyzer:
                     interactable_inputs = [i for i in inputs if i.get("type", "text") not in ["hidden", "submit", "button"]]
                     
                     if interactable_inputs:
+                        if is_login_trigger:
+                            # stricter checks for login forms
+                            has_password = False
+                            has_user_field = False
+                            
+                            for input_elem in inputs:
+                                i_type = input_elem.get("type", "text")
+                                i_name = (input_elem.get("name") or input_elem.get("id") or "").lower()
+                                
+                                if i_type == "password":
+                                    has_password = True
+                                if any(n in i_name for n in ["user", "email", "login", "auth"]):
+                                    has_user_field = True
+                            
+                            # If it's a login trigger but has no password and no user field, skip it 
+                            # (avoids catching search bars near login buttons)
+                            if not has_password and not has_user_field:
+                                continue
+                                
+                            # Also skip if it only has a search/query input
+                            input_names = [(i.get("name") or i.get("id") or "").lower() for i in inputs]
+                            if len(inputs) == 1 and any(n in input_names[0] for n in ["search", "query", "q"]):
+                                continue
                         form_data = {
                             "action": base_url,
                             "method": "POST",
