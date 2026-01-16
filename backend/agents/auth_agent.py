@@ -320,7 +320,7 @@ class AuthenticationAgent(BaseSecurityAgent):
                             "is_login": True
                         }
         except Exception as e:
-            logger.debug(f"[Auth Agent] Error checking {url}: {e}")
+            logger.error(f"[Auth Agent] Error checking {url}: {e}")
 
         return {"is_login": False}
 
@@ -390,12 +390,25 @@ class AuthenticationAgent(BaseSecurityAgent):
 
         for username, password in credentials:
             try:
+                # Try form data first
+                creds_data = {"username": username, "password": password}
                 response = await self.make_request(
                     url,
                     method="POST",
-                    data={"username": username, "password": password},
+                    data=creds_data,
                     timeout=AuthConfig.REQUEST_TIMEOUT
                 )
+
+                # If form data fails or returns 415/400, try JSON
+                if response is None or response.status_code in [400, 415]:
+                    json_response = await self.make_request(
+                        url,
+                        method="POST",
+                        json=creds_data,
+                        timeout=AuthConfig.REQUEST_TIMEOUT
+                    )
+                    if json_response:
+                        response = json_response
 
                 if response is None:
                     continue
@@ -474,12 +487,27 @@ class AuthenticationAgent(BaseSecurityAgent):
 
             responses = []
             for user in test_users:
+                creds_data = {"username": user, "password": "WrongPassword123!"}
+                
+                # Try form data
                 response = await self.make_request(
                     url,
                     method="POST",
-                    data={"username": user, "password": "WrongPassword123!"},
+                    data=creds_data,
                     timeout=AuthConfig.REQUEST_TIMEOUT
                 )
+
+                # Try JSON if needed
+                if response is None or response.status_code in [400, 415]:
+                    json_response = await self.make_request(
+                        url,
+                        method="POST",
+                        json=creds_data,
+                        timeout=AuthConfig.REQUEST_TIMEOUT
+                    )
+                    if json_response:
+                        response = json_response
+
                 if response:
                     responses.append((user, response.text.lower(), response.status_code))
                 await asyncio.sleep(AuthConfig.RATE_LIMIT_DELAY)

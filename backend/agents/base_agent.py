@@ -181,14 +181,18 @@ class CachedResponse:
 
     def __init__(
             self,
+            url: str,
             text: str,
             status_code: int,
             headers: Dict[str, str],
+            is_error: bool = False,
             is_cached: bool = True
     ):
+        self.url = url
         self.text = text
         self.status_code = status_code
         self.headers = headers
+        self.is_error = is_error
         self.content = text.encode('utf-8')
         self.is_cached = is_cached
 
@@ -620,15 +624,17 @@ class BaseSecurityAgent(ABC):
         return min(wait_time, AgentConfig.MAX_RETRY_BACKOFF)
 
     async def make_request(
-            self,
-            url: str,
-            method: str = HTTPMethods.GET,
-            data: Optional[Dict[str, Any]] = None,
-            headers: Optional[Dict[str, str]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            use_cache: bool = True,
-            skip_rate_limit: bool = False
-    ) -> Optional[ResponseLike]:
+        self,
+        url: str,
+        method: str = HTTPMethods.GET,
+        data: Optional[Dict[str, Any]] = None,
+        json: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        use_cache: bool = True,
+        skip_rate_limit: bool = False
+    ) -> Any:
         """
         Make HTTP request with caching, rate limiting, and retry logic.
 
@@ -643,7 +649,8 @@ class BaseSecurityAgent(ABC):
         Args:
             url: Target URL
             method: HTTP method (GET, POST, etc.)
-            data: Request body data (for POST/PUT)
+            data: Request body data (form-encoded)
+            json: JSON request body (application/json)
             headers: Custom request headers
             params: Query parameters
             use_cache: Whether to check cache and cache this request
@@ -675,7 +682,7 @@ class BaseSecurityAgent(ABC):
 
         # Check cache first
         if self.use_caching and use_cache:
-            cached = await self._get_cached_response(url, method, params, data, headers)
+            cached = await self._get_cached_response(url, method, params, data, json, headers)
             if cached:
                 return cached
 
@@ -691,13 +698,16 @@ class BaseSecurityAgent(ABC):
         for attempt in range(self.max_retries):
             try:
                 response = await self._execute_request(
-                    url, method, data, headers, params, attempt
+                    url, method, data, json, headers, params, timeout, attempt
                 )
-
+                
+                if response:
+                    logger.debug(f"[{self.agent_name}] {method} {url} -> {response.status_code} (Length: {len(response.content)})")
+                
                 # Cache successful responses
                 if self.use_caching and use_cache and response.status_code < 500:
                     await self._cache_response(
-                        url, method, response, params, data, headers
+                        url, method, response, params, data, json, headers
                     )
 
                 return response
@@ -728,17 +738,20 @@ class BaseSecurityAgent(ABC):
             method: str,
             params: Optional[Dict],
             data: Optional[Dict],
+            json: Optional[Any],
             headers: Optional[Dict]
     ) -> Optional[CachedResponse]:
         """Check cache for existing response."""
-        cached = await self.cache.get(url, method, params, data, headers)
+        cached = await self.cache.get(url, method, params, data, json, headers)
         if cached:
             self.request_stats.cached_responses += 1
             logger.debug(f"[{self.agent_name}] Cache hit: {url}")
             return CachedResponse(
+                url=url,
                 text=cached.response_text,
                 status_code=cached.status_code,
-                headers=cached.headers
+                headers=cached.headers,
+                is_error=cached.status_code >= 400
             )
         return None
 
@@ -747,12 +760,18 @@ class BaseSecurityAgent(ABC):
             url: str,
             method: str,
             data: Optional[Dict],
+            json: Optional[Any],
             headers: Optional[Dict],
             params: Optional[Dict],
+            timeout: Optional[float],
             attempt: int
-    ) -> httpx.Response:
+    ) -> Any:
         """Execute HTTP request with size limits and report metrics."""
         start_time = time.time()
+        response = None
+        
+        # Determine actual timeout
+        request_timeout = timeout if timeout is not None else AgentConfig.DEFAULT_TIMEOUT
 
         try:
             # MEMORY OPTIMIZATION: Stream response and limit size
@@ -760,8 +779,10 @@ class BaseSecurityAgent(ABC):
                 method=method,
                 url=url,
                 data=data,
+                json=json,
                 headers=headers,
-                params=params
+                params=params,
+                timeout=request_timeout
             ) as stream_response:
                 # Read response up to max size
                 content_chunks = []
@@ -853,6 +874,7 @@ class BaseSecurityAgent(ABC):
             response: httpx.Response,
             params: Optional[Dict],
             data: Optional[Dict],
+            json: Optional[Any],
             headers: Optional[Dict]
     ) -> None:
         """Store response in cache."""
@@ -864,6 +886,7 @@ class BaseSecurityAgent(ABC):
             response_headers=dict(response.headers),
             params=params,
             data=data,
+            json=json,
             request_headers=headers
         )
         logger.debug(f"[{self.agent_name}] Cached response: {url}")

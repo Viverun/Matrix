@@ -516,10 +516,15 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
         for payload in payloads[:15]:  # Test subset for speed
             test_params = params.copy()
-            test_params[param_name] = payload
+            test_params[param_name] = f"{original_value}{payload}"
 
             try:
-                response = await self._make_request(url, method, test_params)
+                response = await self.make_request(
+                    url, 
+                    method=method, 
+                    params=test_params if method == "GET" else None,
+                    data=test_params if method != "GET" else None
+                )
                 if not response:
                     continue
 
@@ -604,7 +609,12 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
         # Get baseline response
         try:
-            baseline_response = await self._make_request(url, method, params)
+            baseline_response = await self.make_request(
+                url, 
+                method=method, 
+                params=params if method == "GET" else None,
+                data=params if method != "GET" else None
+            )
             if not baseline_response:
                 return None
 
@@ -619,7 +629,12 @@ class SQLInjectionAgent(BaseSecurityAgent):
                 # Test TRUE condition
                 true_params = params.copy()
                 true_params[param_name] = f"{original_value}{true_payload}"
-                true_response = await self._make_request(url, method, true_params)
+                true_response = await self.make_request(
+                    url, 
+                    method=method, 
+                    params=true_params if method == "GET" else None,
+                    data=true_params if method != "GET" else None
+                )
 
                 if not true_response:
                     continue
@@ -627,7 +642,12 @@ class SQLInjectionAgent(BaseSecurityAgent):
                 # Test FALSE condition
                 false_params = params.copy()
                 false_params[param_name] = f"{original_value}{false_payload}"
-                false_response = await self._make_request(url, method, false_params)
+                false_response = await self.make_request(
+                    url, 
+                    method=method, 
+                    params=false_params if method == "GET" else None,
+                    data=false_params if method != "GET" else None
+                )
 
                 if not false_response:
                     continue
@@ -642,8 +662,18 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
                 if len_diff_ratio > SQLInjectionConfig.BOOLEAN_DIFF_THRESHOLD and baseline_match:
                     # Verify with second round
-                    verify_true = await self._make_request(url, method, true_params)
-                    verify_false = await self._make_request(url, method, false_params)
+                    verify_true = await self.make_request(
+                        url, 
+                        method=method, 
+                        params=true_params if method == "GET" else None,
+                        data=true_params if method != "GET" else None
+                    )
+                    verify_false = await self.make_request(
+                        url, 
+                        method=method, 
+                        params=false_params if method == "GET" else None,
+                        data=false_params if method != "GET" else None
+                    )
 
                     if verify_true and verify_false:
                         verify_diff = abs(len(verify_true.text) - len(verify_false.text)) / max(
@@ -731,7 +761,13 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
             try:
                 start = time.time()
-                response = await self._make_request(url, method, test_params)
+                response = await self.make_request(
+                    url, 
+                    method=method, 
+                    params=test_params if method == "GET" else None,
+                    data=test_params if method != "GET" else None,
+                    use_cache=False  # Crucial for timing
+                )
                 elapsed = time.time() - start
 
                 if not response:
@@ -742,7 +778,13 @@ class SQLInjectionAgent(BaseSecurityAgent):
                     if baseline.is_delayed(elapsed, SQLInjectionConfig.TIMING_THRESHOLD_STD_DEVS):
                         # Verify with second attempt
                         verify_start = time.time()
-                        verify_response = await self._make_request(url, method, test_params)
+                        verify_response = await self.make_request(
+                            url, 
+                            method=method, 
+                            params=test_params if method == "GET" else None,
+                            data=test_params if method != "GET" else None,
+                            use_cache=False
+                        )
                         verify_elapsed = time.time() - verify_start
 
                         if verify_elapsed >= SQLInjectionConfig.MIN_DELAY_CONFIRMATION:
@@ -813,7 +855,13 @@ class SQLInjectionAgent(BaseSecurityAgent):
         for _ in range(SQLInjectionConfig.BASELINE_SAMPLES):
             try:
                 start = time.time()
-                response = await self._make_request(url, method, params)
+                response = await self.make_request(
+                    url, 
+                    method=method, 
+                    params=params if method == "GET" else None,
+                    data=params if method != "GET" else None,
+                    use_cache=False
+                )
                 elapsed = time.time() - start
 
                 if response:
@@ -832,22 +880,6 @@ class SQLInjectionAgent(BaseSecurityAgent):
             std_dev=std_dev,
             measurements=measurements
         )
-
-    async def _make_request(
-            self,
-            url: str,
-            method: str,
-            params: Dict[str, Any]
-    ) -> Optional[Any]:
-        """Helper to make HTTP requests consistently."""
-        try:
-            if method.upper() == "GET":
-                return await self.make_request(url, method="GET", params=params)
-            else:
-                return await self.make_request(url, method=method, data=params)
-        except Exception as e:
-            self.log(f"Request failed: {str(e)}", level="error")
-            return None
 
     def _build_sqli_context(
             self,

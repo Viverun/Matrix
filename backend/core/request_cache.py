@@ -114,6 +114,7 @@ class RequestCache:
         method: str = "GET",
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         headers: Optional[Dict] = None
     ) -> str:
         """
@@ -137,7 +138,13 @@ class RequestCache:
         
         if data and method.upper() in ("POST", "PUT", "PATCH"):
             sorted_data = sorted(data.items()) if isinstance(data, dict) else [str(data)]
-            key_parts.append(str(sorted_data))
+            key_parts.append(f"data:{str(sorted_data)}")
+        
+        if json and method.upper() in ("POST", "PUT", "PATCH"):
+            # For JSON, we might have nested structures, so we convert to string representation
+            import json as json_lib
+            json_str = json_lib.dumps(json, sort_keys=True)
+            key_parts.append(f"json:{json_str}")
         
         # Include relevant headers that might affect response
         if headers:
@@ -212,6 +219,7 @@ class RequestCache:
         method: str = "GET",
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         headers: Optional[Dict] = None
     ) -> Optional[CacheEntry]:
         """
@@ -233,7 +241,7 @@ class RequestCache:
         if self.config.get_only and method.upper() != "GET":
             return None
         
-        key = self._make_key(url, method, params, data, headers)
+        key = self._make_key(url, method, params, data, json, headers)
         
         async with self._lock:
             if key in self._cache:
@@ -287,6 +295,7 @@ class RequestCache:
         response_headers: Dict[str, str],
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         request_headers: Optional[Dict] = None
     ) -> bool:
         """
@@ -325,7 +334,7 @@ class RequestCache:
             logger.debug(f"TTL is 0, not caching {url}")
             return False
         
-        key = self._make_key(url, method, params, data, request_headers)
+        key = self._make_key(url, method, params, data, json, request_headers)
         content_hash = self._hash_content(response_text)
         now = time.time()
         
@@ -432,6 +441,7 @@ class RequestCache:
         method: str = "GET",
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         headers: Optional[Dict] = None,
         timeout: float = 30.0
     ) -> Tuple[bool, Optional[CacheEntry]]:
@@ -451,7 +461,7 @@ class RequestCache:
         Returns:
             Tuple of (was_pending, cached_entry)
         """
-        key = self._make_key(url, method, params, data, headers)
+        key = self._make_key(url, method, params, data, json, headers)
         
         async with self._lock:
             if key in self._pending:
@@ -464,7 +474,7 @@ class RequestCache:
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
             logger.debug(f"Pending request completed: {url}")
-            return True, await self.get(url, method, params, data, headers)
+            return True, await self.get(url, method, params, data, json, headers)
         except asyncio.TimeoutError:
             logger.warning(
                 f"Timeout waiting for pending request: {url}",
@@ -478,6 +488,7 @@ class RequestCache:
         method: str = "GET",
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         headers: Optional[Dict] = None
     ) -> bool:
         """
@@ -493,7 +504,7 @@ class RequestCache:
         Returns:
             True if marked (no existing pending request), False otherwise
         """
-        key = self._make_key(url, method, params, data, headers)
+        key = self._make_key(url, method, params, data, json, headers)
         
         async with self._lock:
             if key in self._pending:
@@ -509,6 +520,7 @@ class RequestCache:
         method: str = "GET",
         params: Optional[Dict] = None,
         data: Optional[Dict] = None,
+        json: Optional[Any] = None,
         headers: Optional[Dict] = None
     ) -> None:
         """
@@ -521,7 +533,7 @@ class RequestCache:
             data: Request body data
             headers: Request headers
         """
-        key = self._make_key(url, method, params, data, headers)
+        key = self._make_key(url, method, params, data, json, headers)
         
         async with self._lock:
             if key in self._pending:
