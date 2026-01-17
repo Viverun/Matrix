@@ -329,9 +329,9 @@ class AdaptiveRateLimiter:
                     # Server error - mild backoff
                     state.consecutive_errors += 1
                     
-                    # Increased threshold for 500s to allow for fuzzing/probing on unstable targets
-                    # 3 was too low for blind SQLi testing where 500s are expected baselines
-                    if state.consecutive_errors >= 20:
+                    # Threshold of 5 balances fuzzing needs with stability
+                    # 3 was too aggressive, 20 caused hangs
+                    if state.consecutive_errors >= 5:
                         state.backoff_until = now + self.config.initial_backoff
                         logger.warning(
                             f"Multiple server errors from {host} ({state.consecutive_errors}), "
