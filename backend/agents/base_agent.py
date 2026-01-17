@@ -697,8 +697,17 @@ class BaseSecurityAgent(ABC):
         # Attempt request with retries
         for attempt in range(self.max_retries):
             try:
+                # AUTH CHAINING: Inject auth headers from scan_context if authenticated
+                effective_headers = headers.copy() if headers else {}
+                if self.scan_context and self.scan_context.authenticated and self.scan_context.auth_headers:
+                    # Merge auth headers (don't overwrite explicit headers)
+                    for key, value in self.scan_context.auth_headers.items():
+                        if key not in effective_headers:
+                            effective_headers[key] = value
+                    logger.debug(f"[{self.agent_name}] Auth chaining: Injecting {len(self.scan_context.auth_headers)} auth headers")
+                
                 response = await self._execute_request(
-                    url, method, data, json, headers, params, timeout, attempt
+                    url, method, data, json, effective_headers, params, timeout, attempt
                 )
                 
                 if response:

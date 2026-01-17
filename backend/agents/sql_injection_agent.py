@@ -544,6 +544,37 @@ class SQLInjectionAgent(BaseSecurityAgent):
 
                 if is_success and has_token and has_user_data:
                     # Successful authentication bypass!
+                    
+                    # AUTH CHAINING: Extract and store the token for use by subsequent agents
+                    extracted_token = None
+                    token_key = None
+                    for key in ['token', 'access_token', 'accessToken', 'jwt', 'auth_token', 'authToken']:
+                        if key in response_json:
+                            extracted_token = response_json[key]
+                            token_key = key
+                            break
+                        # Also check nested 'authentication' or 'data' objects
+                        if isinstance(response_json.get('authentication'), dict) and key in response_json['authentication']:
+                            extracted_token = response_json['authentication'][key]
+                            token_key = f"authentication.{key}"
+                            break
+                        if isinstance(response_json.get('data'), dict) and key in response_json['data']:
+                            extracted_token = response_json['data'][key]
+                            token_key = f"data.{key}"
+                            break
+                    
+                    if extracted_token and self.scan_context:
+                        self.log(f"Auth chaining: Captured {token_key} from successful SQLi bypass")
+                        # Store token for subsequent authenticated requests
+                        self.scan_context.mark_authenticated(
+                            headers={"Authorization": f"Bearer {extracted_token}"}
+                        )
+                        self.scan_context.add_session_token(
+                            name=token_key or "jwt",
+                            value=extracted_token,
+                            endpoint=login_url
+                        )
+                    
                     return [self.create_result(
                         vulnerability_type=VulnerabilityType.SQL_INJECTION,
                         is_vulnerable=True,
