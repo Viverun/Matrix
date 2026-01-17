@@ -1311,7 +1311,16 @@ class AgentOrchestrator:
         try:
             from scanner.target_analyzer import TargetAnalyzer
 
-            analyzer = TargetAnalyzer(timeout=30.0, max_depth=2)
+            # Inject authentication from scan context
+            auth_headers = self.scan_context.manual_headers if self.scan_context else {}
+            auth_cookies = self.scan_context.manual_cookies if self.scan_context else {}
+
+            analyzer = TargetAnalyzer(
+                timeout=30.0, 
+                max_depth=2,
+                auth_headers=auth_headers,
+                auth_cookies=auth_cookies
+            )
             analysis = await analyzer.analyze(target_url)
             await analyzer.close()
 
