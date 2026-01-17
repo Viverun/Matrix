@@ -427,8 +427,28 @@ export default function ScanPage() {
                                                 <p className="text-xs text-gray-500">{targetUrl}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-bold text-gray-900 font-mono">{Math.round(scanProgress)}%</div>
+                                        <div className="flex items-center gap-6">
+                                            {scanResults && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm('Terminate this security audit?')) {
+                                                            try {
+                                                                await api.cancelScan(scanResults.id);
+                                                                // The interval will catch the 'cancelled' status in next poll
+                                                            } catch (err: any) {
+                                                                alert(err.message || 'Cancellation failed');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-all font-sans"
+                                                >
+                                                    Cancel Scan
+                                                </button>
+                                            )}
+                                            <div className="text-right">
+                                                <div className="text-2xl font-bold text-gray-900 font-mono">{Math.round(scanProgress)}%</div>
+                                                <div className="text-[10px] text-gray-400 uppercase tracking-widest text-center">Complete</div>
+                                            </div>
                                         </div>
                                     </div>
 
