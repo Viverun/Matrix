@@ -208,18 +208,46 @@ export default function DashboardPage() {
                                                         {scan.progress}% Analysis
                                                     </div>
                                                 )}
+                                                {scan.status === 'pending' && (
+                                                    <div className="text-warm-400 text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                                                        <Clock className="w-4 h-4" />
+                                                        Queued
+                                                    </div>
+                                                )}
                                                 {scan.status === 'failed' && (
                                                     <div className="text-red-500 text-sm font-bold uppercase tracking-widest flex items-center gap-2">
                                                         <XCircle className="w-4 h-4" />
                                                         Scan Failed
                                                     </div>
                                                 )}
-                                                <Link
-                                                    href={`/scans/${scan.id}`}
-                                                    className="px-4 py-2 bg-warm-100 text-text-primary rounded-lg text-sm font-bold uppercase tracking-wider hover:bg-accent-primary hover:text-white transition-all shadow-sm group-hover:shadow-card"
-                                                >
-                                                    Report
-                                                </Link>
+
+                                                <div className="flex items-center gap-2">
+                                                    {(scan.status === 'running' || scan.status === 'pending') && (
+                                                        <button
+                                                            onClick={async (e) => {
+                                                                e.preventDefault();
+                                                                if (confirm('Terminate this security audit?')) {
+                                                                    try {
+                                                                        await api.cancelScan(scan.id);
+                                                                        fetchData(); // Refresh list
+                                                                    } catch (err: any) {
+                                                                        alert(err.message || 'Cancellation failed');
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50/50 rounded-lg transition-all"
+                                                            title="Cancel Scan"
+                                                        >
+                                                            <XCircle className="w-5 h-5" />
+                                                        </button>
+                                                    )}
+                                                    <Link
+                                                        href={`/scans/${scan.id}`}
+                                                        className="px-4 py-2 bg-warm-100 text-text-primary rounded-lg text-sm font-bold uppercase tracking-wider hover:bg-accent-primary hover:text-white transition-all shadow-sm group-hover:shadow-card"
+                                                    >
+                                                        Report
+                                                    </Link>
+                                                </div>
                                             </div>
                                         </div>
                                     ))

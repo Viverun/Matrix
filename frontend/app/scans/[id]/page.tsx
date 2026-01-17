@@ -249,9 +249,27 @@ export default function ScanDetailPage() {
                                         <p className="text-sm text-text-secondary">Analyzing {scan.target_url}</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-3xl font-serif-display font-medium text-accent-primary">{scan.progress}%</div>
-                                    <div className="text-xs text-text-muted uppercase tracking-widest">Complete</div>
+                                <div className="flex items-center gap-6">
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm('Terminate this security audit?')) {
+                                                try {
+                                                    await api.cancelScan(scan.id);
+                                                    const updated = await api.getScan(scan.id);
+                                                    setScan(updated);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Cancellation failed');
+                                                }
+                                            }
+                                        }}
+                                        className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-all"
+                                    >
+                                        Cancel Scan
+                                    </button>
+                                    <div className="text-right">
+                                        <div className="text-3xl font-serif-display font-medium text-accent-primary">{scan.progress}%</div>
+                                        <div className="text-xs text-text-muted uppercase tracking-widest">Complete</div>
+                                    </div>
                                 </div>
                             </div>
 
