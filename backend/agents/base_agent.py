@@ -429,6 +429,9 @@ class BaseSecurityAgent(ABC):
         # CVSS Calculator for context-based scoring
         self.cvss_calculator = CVSSCalculator()
 
+        # Scan context for inter-agent communication (set during scan())
+        self.scan_context = None
+
         # Statistics
         self.request_stats = RequestStats()
 
