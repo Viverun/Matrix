@@ -6,12 +6,16 @@ import re
 import asyncio
 import time
 import statistics
+import logging
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse, parse_qs
 
 from .base_agent import BaseSecurityAgent, AgentResult
 from models.vulnerability import Severity, VulnerabilityType
 from scoring import VulnerabilityContext, ConfidenceMethod
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TimingBaseline:
