@@ -52,6 +52,7 @@ export default function ScanPage() {
 
     // Pre-scan warning modal
     const [showPreScanWarning, setShowPreScanWarning] = useState(false);
+    const [dontShowAgain, setDontShowAgain] = useState(false);
 
 
     // Load scan from URL on page mount
@@ -95,9 +96,10 @@ export default function ScanPage() {
     const handleScanButtonClick = () => {
         if (!targetUrl) return;
 
-        // Check if user has seen warning (session storage)
-        const hasSeenWarning = sessionStorage.getItem('matrix_scan_warning_seen');
-        if (!hasSeenWarning) {
+        // Check if user has permanently disabled the warning
+        const isPermanentlyDisabled = localStorage.getItem('matrix_skip_scan_warning') === 'true';
+
+        if (!isPermanentlyDisabled) {
             setShowPreScanWarning(true);
         } else {
             handleStartScan();
@@ -108,7 +110,9 @@ export default function ScanPage() {
         if (!targetUrl) return;
 
         setShowPreScanWarning(false);
-        sessionStorage.setItem('matrix_scan_warning_seen', 'true');
+        if (dontShowAgain) {
+            localStorage.setItem('matrix_skip_scan_warning', 'true');
+        }
 
         setIsScanning(true);
         setScanProgress(0);
@@ -347,7 +351,7 @@ export default function ScanPage() {
                                         placeholder="https://example.com"
                                         value={targetUrl}
                                         onChange={(e) => setTargetUrl(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' && targetUrl && !isScanning) handleStartScan(); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && targetUrl && !isScanning) handleScanButtonClick(); }}
                                         className="w-full pl-10 pr-4 py-3 rounded-md border border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-100 outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-gray-50"
                                         disabled={isScanning}
                                     />
@@ -1062,7 +1066,9 @@ export default function ScanPage() {
                                 <button
                                     onClick={async () => {
                                         setShowPreScanWarning(false);
-                                        sessionStorage.setItem('matrix_scan_warning_seen', 'true');
+                                        if (dontShowAgain) {
+                                            localStorage.setItem('matrix_skip_scan_warning', 'true');
+                                        }
                                         setTargetUrl('https://pentest-ground.com:4280');
 
                                         // Small delay for state update
@@ -1129,6 +1135,23 @@ export default function ScanPage() {
                                     pentest-ground.com:4280
                                 </p>
                             </div>
+
+                            {/* Don't show again checkbox */}
+                            <div className="px-1 mt-4">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={dontShowAgain}
+                                            onChange={(e) => setDontShowAgain(e.target.checked)}
+                                            className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                                        />
+                                    </div>
+                                    <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
+                                        Don't show this warning again
+                                    </span>
+                                </label>
+                            </div>
                         </div>
 
                         {/* Footer */}
@@ -1141,7 +1164,6 @@ export default function ScanPage() {
                             </button>
                             <button
                                 onClick={() => {
-                                    sessionStorage.setItem('matrix_scan_warning_seen', 'true');
                                     handleStartScan();
                                 }}
                                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"

@@ -48,11 +48,11 @@ class SQLInjectionConfig:
 
     # Common login endpoints to test for SQL injection
     LOGIN_ENDPOINTS = [
+        "/login",  # Generic login - test first
         "/rest/user/login",  # Juice Shop
         "/api/login",
         "/api/auth/login",
         "/api/v1/login",
-        "/login",
         "/auth/login",
         "/user/login",
         "/api/user/login",
@@ -378,11 +378,13 @@ class SQLInjectionAgent(BaseSecurityAgent):
                 if check_response is None:
                     self.log(f"Endpoint check failed (No response): {login_url}")
                     continue
-                # Skip if 404
+                # Skip ONLY if 404 - any other status (including 400, 405, 500) indicates endpoint exists
                 if check_response.status_code == 404:
                     self.log(f"Endpoint returned 404: {login_url}")
                     continue
                 
+                # 405 Method Not Allowed also indicates endpoint exists (might need different method)
+                # 400/500 means the endpoint exists but rejected our empty payload
                 self.log(f"Endpoint exists (Status {check_response.status_code}): {login_url}")
             except Exception as e:
                 self.log(f"Endpoint check exception for {login_url}: {e}")
