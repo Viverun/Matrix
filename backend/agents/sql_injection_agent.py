@@ -553,7 +553,7 @@ class SQLInjectionAgent(BaseSecurityAgent):
                     token_key = None
                     
                     # Debug: Log what we're looking for
-                    self.log(f"Auth chaining: Searching for token in response keys: {list(response_json.keys())}")
+                    logger.info(f"[SQL Agent] Auth chaining: Searching for token in response keys: {list(response_json.keys())}")
                     
                     # Check top-level keys first
                     for key in ['token', 'access_token', 'accessToken', 'jwt', 'auth_token', 'authToken']:
@@ -565,7 +565,7 @@ class SQLInjectionAgent(BaseSecurityAgent):
                     # Check nested 'authentication' object (Juice Shop pattern)
                     if not extracted_token and isinstance(response_json.get('authentication'), dict):
                         auth_obj = response_json['authentication']
-                        self.log(f"Auth chaining: Found 'authentication' object with keys: {list(auth_obj.keys())}")
+                        logger.info(f"[SQL Agent] Auth chaining: Found 'authentication' object with keys: {list(auth_obj.keys())}")
                         for key in ['token', 'access_token', 'accessToken', 'jwt', 'auth_token', 'authToken']:
                             if key in auth_obj:
                                 extracted_token = auth_obj[key]
@@ -582,7 +582,7 @@ class SQLInjectionAgent(BaseSecurityAgent):
                                 break
                     
                     if extracted_token and self.scan_context:
-                        self.log(f"Auth chaining: Captured {token_key} from successful SQLi bypass")
+                        logger.info(f"[SQL Agent] Auth chaining: Captured {token_key} from successful SQLi bypass")
                         # Store token for subsequent authenticated requests
                         self.scan_context.mark_authenticated(
                             headers={"Authorization": f"Bearer {extracted_token}"}
@@ -593,9 +593,9 @@ class SQLInjectionAgent(BaseSecurityAgent):
                             endpoint=login_url
                         )
                     elif extracted_token:
-                        self.log(f"Auth chaining: Token found but scan_context is None!")
+                        logger.info(f"[SQL Agent] Auth chaining: Token found but scan_context is None!")
                     else:
-                        self.log(f"Auth chaining: No token found in response")
+                        logger.info(f"[SQL Agent] Auth chaining: No token found in response")
                     
                     return [self.create_result(
                         vulnerability_type=VulnerabilityType.SQL_INJECTION,
