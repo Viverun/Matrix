@@ -319,35 +319,32 @@ class AgentOrchestrator:
                 "dependencies": [AgentNames.AUTH, AgentNames.API],
                 "timeout": OrchestratorConfig.EXPLOITATION_AGENT_TIMEOUT
             },
-            # NOTE: XSS and other exploitation agents now depend on SQL_INJECTION
-            # This enables auth chaining - tokens captured during SQLi bypass
-            # are available to subsequent agents for authenticated testing.
             AgentNames.XSS: {
                 "class": "XSSAgent",
                 "module": ".xss_agent",
                 "phase": AgentPhase.EXPLOITATION,
-                "dependencies": [AgentNames.AUTH, AgentNames.API, AgentNames.SQL_INJECTION],
+                "dependencies": [AgentNames.AUTH, AgentNames.API],
                 "timeout": OrchestratorConfig.EXPLOITATION_AGENT_TIMEOUT
             },
             AgentNames.CSRF: {
                 "class": "CSRFAgent",
                 "module": ".csrf_agent",
                 "phase": AgentPhase.EXPLOITATION,
-                "dependencies": [AgentNames.AUTH, AgentNames.SQL_INJECTION],
+                "dependencies": [AgentNames.AUTH],
                 "timeout": OrchestratorConfig.DISCOVERY_AGENT_TIMEOUT
             },
             AgentNames.SSRF: {
                 "class": "SSRFAgent",
                 "module": ".ssrf_agent",
                 "phase": AgentPhase.EXPLOITATION,
-                "dependencies": [AgentNames.API, AgentNames.SQL_INJECTION],
+                "dependencies": [AgentNames.API],
                 "timeout": OrchestratorConfig.DISCOVERY_AGENT_TIMEOUT
             },
             AgentNames.COMMAND_INJECTION: {
                 "class": "CommandInjectionAgent",
                 "module": ".command_injection_agent",
                 "phase": AgentPhase.EXPLOITATION,
-                "dependencies": [AgentNames.API, AgentNames.SQL_INJECTION],
+                "dependencies": [AgentNames.API],
                 "timeout": OrchestratorConfig.DISCOVERY_AGENT_TIMEOUT
             }
         }
