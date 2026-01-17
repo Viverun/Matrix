@@ -795,7 +795,8 @@ class TargetAnalyzer:
                 # Only crawl same-host HTML pages
                 if (parsed_url.netloc == parsed_base.netloc and 
                     full_url not in self.visited_urls and
-                    not any(ext in full_url.lower() for ext in ['.pdf', '.zip', '.jpg', '.png'])):
+                    not any(ext in full_url.lower() for ext in ['.pdf', '.zip', '.jpg', '.png']) and
+                    not any(logout_term in full_url.lower() for logout_term in ['logout', 'signout', 'log_out', 'sign_out'])):
                     
                     self.visited_urls.add(full_url)
                     crawl_tasks.append(self._crawl_page(full_url, depth + 1))
