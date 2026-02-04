@@ -36,8 +36,16 @@ def get_redis_connection() -> Redis:
     """Get Redis connection from settings."""
     settings = get_settings()
     redis_url = getattr(settings, 'redis_url', 'redis://localhost:6379')
-    
-    logger.info(f"Connecting to Redis: {redis_url}")
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(redis_url)
+        safe_netloc = parsed.hostname or "unknown"
+        if parsed.port:
+            safe_netloc = f"{safe_netloc}:{parsed.port}"
+        safe_path = parsed.path or ""
+        logger.info(f"Connecting to Redis: {parsed.scheme}://{safe_netloc}{safe_path}")
+    except Exception:
+        logger.info("Connecting to Redis: <unparsed>")
     return Redis.from_url(redis_url)
 
 
