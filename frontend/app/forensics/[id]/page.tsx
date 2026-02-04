@@ -91,6 +91,8 @@ interface DeepReport {
 
 export default function ForensicDetailPage() {
     const { id } = useParams();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiPath = (path: string) => `${apiBase}${path}`;
     const [activeTab, setActiveTab] = useState<'timeline' | 'artifacts' | 'integrity' | 'report'>('timeline');
     const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
     const [summary, setSummary] = useState<ForensicSummary | null>(null);
@@ -106,10 +108,10 @@ export default function ForensicDetailPage() {
         const fetchData = async () => {
             try {
                 const [sumRes, timeRes, artRes, reportRes] = await Promise.all([
-                    fetch(`/api/forensics/${id}/`),
-                    fetch(`/api/forensics/${id}/timeline/`),
-                    fetch(`/api/forensics/${id}/artifacts/`),
-                    fetch(`/api/forensics/${id}/report/`)
+                    fetch(apiPath(`/api/forensics/${id}/`)),
+                    fetch(apiPath(`/api/forensics/${id}/timeline/`)),
+                    fetch(apiPath(`/api/forensics/${id}/artifacts/`)),
+                    fetch(apiPath(`/api/forensics/${id}/report/`))
                 ]);
 
                 if (sumRes.ok) setSummary(await sumRes.json());
@@ -128,7 +130,7 @@ export default function ForensicDetailPage() {
 
     const handleDownload = (url: string) => {
         const link = document.createElement('a');
-        link.href = url;
+        link.href = apiPath(url);
         link.setAttribute('download', '');
         document.body.appendChild(link);
         link.click();
