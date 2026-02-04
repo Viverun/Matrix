@@ -876,6 +876,7 @@ class AgentOrchestrator:
         return [
             ep for ep in endpoints
             if ep.get("params") or
+               ep.get("method", "GET").upper() in ["POST", "PUT", "PATCH"] or
                "search" in ep.get("url", "").lower() or
                "q=" in ep.get("url", "")
         ]

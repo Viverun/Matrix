@@ -721,13 +721,35 @@ class XSSAgent(BaseSecurityAgent, WAFEvasionMixin):
             method = endpoint.get("method", "GET")
             params = endpoint.get("params", {})
 
+            # Extract query params from URL if present and params missing
+            if not params and "?" in url:
+                try:
+                    from urllib.parse import urlparse, parse_qs
+                    parsed = urlparse(url)
+                    if parsed.query:
+                        params = {
+                            k: (v[0] if isinstance(v, list) and v else "")
+                            for k, v in parse_qs(parsed.query, keep_blank_values=True).items()
+                        }
+                except Exception:
+                    params = params or {}
+
             # Skip if no parameters
             if not params:
                 # Parameter guessing for high-interest endpoints
                 interesting_paths = ["search", "query", "user", "profile", "article", "item", "page", "redirect", "login"]
                 if any(keyword in url.lower() for keyword in interesting_paths):
                     logger.info(f"Guessing parameters for interesting endpoint: {url}")
-                    params = {"id": "1", "q": "test", "query": "test", "name": "test", "url": "http://example.com"}
+                    params = {
+                        "id": "1",
+                        "q": "test",
+                        "query": "test",
+                        "search": "test",
+                        "name": "test",
+                        "page": "1",
+                        "redirect": "http://example.com",
+                        "url": "http://example.com"
+                    }
                 else:
                     # Still check for DOM XSS
                     dom_result = await self._check_dom_xss(url)

@@ -18,15 +18,15 @@ interface SecurityScanViewProps {
 
 export function SecurityScanView({ scan, findings, activeTab, terminalLines }: SecurityScanViewProps) {
     const counts = {
-        critical: findings.filter(f => !f.is_suppressed && f.severity === 'critical').length,
-        high: findings.filter(f => !f.is_suppressed && f.severity === 'high').length,
-        medium: findings.filter(f => !f.is_suppressed && f.severity === 'medium').length,
-        low: findings.filter(f => !f.is_suppressed && f.severity === 'low').length,
+        critical: findings.filter(f => f.severity === 'critical').length,
+        high: findings.filter(f => f.severity === 'high').length,
+        medium: findings.filter(f => f.severity === 'medium').length,
+        low: findings.filter(f => f.severity === 'low').length,
         suppressed: findings.filter(f => f.is_suppressed).length
     };
 
     const filteredFindings = findings.filter(f =>
-        activeTab === 'active' ? !f.is_suppressed : f.is_suppressed
+        activeTab === 'active' ? true : f.is_suppressed
     );
 
     return (
@@ -59,11 +59,11 @@ export function SecurityScanView({ scan, findings, activeTab, terminalLines }: S
                         <div className="glass-card p-20 text-center">
                             <CheckCircle className="w-16 h-16 text-green-500/30 mx-auto mb-4" />
                             <h4 className="text-xl font-medium text-text-primary">
-                                {activeTab === 'active' ? 'Target Secured' : 'No Suppressed Findings'}
+                                {activeTab === 'active' ? 'No Findings' : 'No Suppressed Findings'}
                             </h4>
                             <p className="text-text-secondary mt-2 max-w-sm mx-auto italic">
                                 {activeTab === 'active'
-                                    ? 'All dynamic security tests passed without intercepting a successful attack vector.'
+                                    ? 'No findings were recorded for this scan.'
                                     : 'No findings were diverted from the primary report.'}
                             </p>
                         </div>
@@ -76,6 +76,11 @@ export function SecurityScanView({ scan, findings, activeTab, terminalLines }: S
                                             <span className="text-[10px] font-mono font-bold text-accent-primary bg-accent-primary/10 px-2 py-1 rounded">
                                                 SEC-{String(scan.id).padStart(3, '0')}-{String(vuln.id).padStart(4, '0')}
                                             </span>
+                                            {vuln.is_suppressed && (
+                                                <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-600 uppercase tracking-widest">
+                                                    Suppressed
+                                                </span>
+                                            )}
                                         </div>
                                         <span className={`severity-tag severity-${vuln.severity} px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest shadow-sm`}>
                                             {vuln.severity}

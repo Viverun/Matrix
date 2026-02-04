@@ -22,15 +22,15 @@ export function RepoScanView({ scan, findings, activeTab }: RepoScanViewProps) {
         files: scan.scanned_files
     });
     const counts = {
-        critical: findings.filter(f => !f.is_suppressed && f.severity === 'critical').length,
-        high: findings.filter(f => !f.is_suppressed && f.severity === 'high').length,
-        medium: findings.filter(f => !f.is_suppressed && f.severity === 'medium').length,
-        low: findings.filter(f => !f.is_suppressed && f.severity === 'low').length,
+        critical: findings.filter(f => f.severity === 'critical').length,
+        high: findings.filter(f => f.severity === 'high').length,
+        medium: findings.filter(f => f.severity === 'medium').length,
+        low: findings.filter(f => f.severity === 'low').length,
         suppressed: findings.filter(f => f.is_suppressed).length
     };
 
     const filteredFindings = findings.filter(f =>
-        activeTab === 'active' ? !f.is_suppressed : f.is_suppressed
+        activeTab === 'active' ? true : f.is_suppressed
     );
 
     return (
@@ -88,9 +88,16 @@ export function RepoScanView({ scan, findings, activeTab }: RepoScanViewProps) {
                             <div key={vuln.id} className="glass-card overflow-hidden hover:border-accent-primary/20 transition-all duration-500">
                                 <div className="p-8">
                                     <div className="flex items-center justify-between mb-6 pb-2 border-b border-warm-100">
-                                        <span className="text-[10px] font-mono font-bold text-accent-primary bg-accent-primary/10 px-2 py-1 rounded">
-                                            SAST-{String(scan.id).padStart(3, '0')}-{String(vuln.id).padStart(4, '0')}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-mono font-bold text-accent-primary bg-accent-primary/10 px-2 py-1 rounded">
+                                                SAST-{String(scan.id).padStart(3, '0')}-{String(vuln.id).padStart(4, '0')}
+                                            </span>
+                                            {vuln.is_suppressed && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-gray-100 text-gray-600">
+                                                    Suppressed
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className={`text-[10px] font-bold px-4 py-1.5 rounded-lg uppercase tracking-widest severity-${vuln.severity}`}>
                                             {vuln.severity}
                                         </span>

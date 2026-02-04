@@ -351,6 +351,9 @@ class TargetAnalyzer:
             
             # Extract scripts
             analysis.scripts = self._extract_scripts(soup, target_url)
+
+            # Discover robots.txt and sitemap URLs
+            robots_endpoints, sitemap_urls = await self._discover_robots_and_sitemaps(target_url)
             
             # Discover API documentation - ONLY ONCE
             analysis.api_docs = await self._discover_api_docs(target_url)
@@ -363,6 +366,9 @@ class TargetAnalyzer:
                 depth=0
             )
 
+            # Add robots/sitemap endpoints
+            endpoints.extend(robots_endpoints)
+
             # Probing of common paths - ONLY ONCE
             common_path_endpoints = await self._probe_common_paths(target_url)
             endpoints.extend(common_path_endpoints)
@@ -374,6 +380,20 @@ class TargetAnalyzer:
                 target_url
             )
             endpoints.extend(js_endpoints)
+
+            # Crawl a limited number of sitemap URLs for deeper discovery
+            if sitemap_urls:
+                sitemap_crawl_tasks = []
+                for url in sitemap_urls[:10]:
+                    parsed = urlparse(url)
+                    if parsed.netloc == urlparse(target_url).netloc and url not in self.visited_urls:
+                        self.visited_urls.add(url)
+                        sitemap_crawl_tasks.append(self._crawl_page(url, depth=1))
+                if sitemap_crawl_tasks:
+                    sitemap_results = await asyncio.gather(*sitemap_crawl_tasks, return_exceptions=True)
+                    for result in sitemap_results:
+                        if isinstance(result, list):
+                            endpoints.extend(result)
             
             # Deduplicate endpoints
             seen = set()
@@ -393,6 +413,89 @@ class TargetAnalyzer:
               f"{len(analysis.technology_stack)} technologies, {len(analysis.api_docs)} API docs")
         
         return analysis
+
+    async def _discover_robots_and_sitemaps(
+        self,
+        base_url: str
+    ) -> Tuple[List[DiscoveredEndpoint], List[str]]:
+        """
+        Discover endpoints from robots.txt and sitemap XMLs.
+
+        Returns:
+            Tuple of (endpoints, sitemap_urls)
+        """
+        endpoints: List[DiscoveredEndpoint] = []
+        sitemap_urls: List[str] = []
+
+        robots_url = urljoin(base_url, "/robots.txt")
+        try:
+            response = await self._fetch_with_error_handling(robots_url, timeout=5.0)
+            if response and response.status_code < 400:
+                for line in response.text.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    lower = line.lower()
+                    if lower.startswith("sitemap:"):
+                        sitemap_url = line.split(":", 1)[1].strip()
+                        if sitemap_url:
+                            sitemap_urls.append(sitemap_url)
+                    elif lower.startswith("allow:") or lower.startswith("disallow:"):
+                        path = line.split(":", 1)[1].strip()
+                        if path and not path.startswith("http"):
+                            full_url = urljoin(base_url, path)
+                            parsed_url = urlparse(full_url)
+                            params = {}
+                            if parsed_url.query:
+                                for key, values in parse_qs(parsed_url.query).items():
+                                    params[key] = values[0] if values else ""
+                            endpoints.append(DiscoveredEndpoint(
+                                url=full_url.split("?")[0],
+                                method="GET",
+                                params=params,
+                                source="robots"
+                            ))
+        except Exception:
+            pass
+
+        # Fallback sitemap locations if not declared in robots.txt
+        if not sitemap_urls:
+            sitemap_urls = [
+                urljoin(base_url, "/sitemap.xml"),
+                urljoin(base_url, "/sitemap_index.xml"),
+            ]
+
+        # Parse sitemap URLs for endpoints
+        discovered_urls: List[str] = []
+        for sitemap_url in sitemap_urls:
+            try:
+                response = await self._fetch_with_error_handling(sitemap_url, timeout=8.0)
+                if not response or response.status_code >= 400:
+                    continue
+                soup = BeautifulSoup(response.text, "xml")
+                locs = [loc.get_text().strip() for loc in soup.find_all("loc") if loc.get_text()]
+                if not locs:
+                    locs = re.findall(r"https?://[^\s<>"]+", response.text)
+
+                for loc in locs[:200]:
+                    parsed = urlparse(loc)
+                    if parsed.netloc != urlparse(base_url).netloc:
+                        continue
+                    params = {}
+                    if parsed.query:
+                        for key, values in parse_qs(parsed.query).items():
+                            params[key] = values[0] if values else ""
+                    endpoints.append(DiscoveredEndpoint(
+                        url=loc.split("?")[0],
+                        method="GET",
+                        params=params,
+                        source="sitemap"
+                    ))
+                    discovered_urls.append(loc)
+            except Exception:
+                continue
+
+        return endpoints, discovered_urls
     
     async def _fetch_with_error_handling(
         self,
@@ -772,9 +875,15 @@ class TargetAnalyzer:
             full_url = urljoin(base_url, action)
             
             params = {}
-            for input_elem in form.find_all("input"):
+            for input_elem in form.find_all(["input", "textarea", "select"]):
                 name = input_elem.get("name")
-                if name:
+                if not name:
+                    continue
+
+                if input_elem.name == "select":
+                    option = input_elem.find("option")
+                    params[name] = option.get("value", "") if option else ""
+                else:
                     params[name] = input_elem.get("value", "")
             
             endpoints.append(DiscoveredEndpoint(
@@ -954,39 +1063,44 @@ class TargetAnalyzer:
             # Resolve relative URLs
             full_url = urljoin(base_url, script_url)
             
-            # Skip very large bundled files (>1MB based on URL patterns)
-            if any(pattern in script_url.lower() for pattern in ['vendor', 'chunk', 'bundle']):
-                # Still analyze but with size limit
-                try:
-                    response = await self._fetch_with_error_handling(full_url, timeout=10.0)
-                    if not response:
-                        return script_endpoints
-                    
-                    # Limit content size - increased for modern SPA bundles
-                    content = response.text[:2000000]  # First 2MB
-                    
-                    # Extract endpoints using patterns
-                    for pattern in self.JS_ENDPOINT_PATTERNS:
-                        urls = re.findall(pattern, content)
-                        for url in urls:
-                            # Skip static assets
-                            if any(ext in url.lower() for ext in ['.js', '.css', '.png', '.jpg', '.svg']):
-                                continue
-                            
-                            full_endpoint_url = urljoin(base_url, url if url.startswith('/') else '/' + url)
-                            
-                            endpoint_key = full_endpoint_url.split("?")[0]
-                            if endpoint_key not in self.discovered_endpoints:
-                                self.discovered_endpoints.add(endpoint_key)
-                                
-                                script_endpoints.append(DiscoveredEndpoint(
-                                    url=endpoint_key,
-                                    method="GET",
-                                    source=f"external_js:{script_url}"
-                                ))
+            # Always analyze scripts; apply size limits for large bundles
+            try:
+                response = await self._fetch_with_error_handling(full_url, timeout=10.0)
+                if not response:
+                    return script_endpoints
                 
-                except Exception as e:
-                    print(f"[Analyzer] Error analyzing script {script_url}: {e}")
+                size_limit = 2000000 if any(pattern in script_url.lower() for pattern in ['vendor', 'chunk', 'bundle']) else 500000
+                content = response.text[:size_limit]
+                
+                # Extract endpoints using patterns
+                for pattern in self.JS_ENDPOINT_PATTERNS:
+                    urls = re.findall(pattern, content)
+                    for url in urls:
+                        # Skip static assets
+                        if any(ext in url.lower() for ext in ['.js', '.css', '.png', '.jpg', '.svg']):
+                            continue
+                        
+                        full_endpoint_url = urljoin(base_url, url if url.startswith('/') else '/' + url)
+                        
+                        endpoint_key = full_endpoint_url.split("?")[0]
+                        if endpoint_key not in self.discovered_endpoints:
+                            self.discovered_endpoints.add(endpoint_key)
+                            
+                            parsed_url = urlparse(full_endpoint_url)
+                            query_params = {}
+                            if parsed_url.query:
+                                for key, values in parse_qs(parsed_url.query).items():
+                                    query_params[key] = values[0] if values else ""
+                            
+                            script_endpoints.append(DiscoveredEndpoint(
+                                url=endpoint_key,
+                                method="GET",
+                                params=query_params,
+                                source=f"external_js:{script_url}"
+                            ))
+            
+            except Exception as e:
+                print(f"[Analyzer] Error analyzing script {script_url}: {e}")
             
             return script_endpoints
         

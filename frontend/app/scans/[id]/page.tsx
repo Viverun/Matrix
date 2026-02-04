@@ -36,10 +36,10 @@ export default function ScanDetailPage() {
     const [terminalLines, setTerminalLines] = useState<string[]>([]);
 
     const counts = {
-        critical: findings.filter(f => !f.is_suppressed && f.severity === 'critical').length,
-        high: findings.filter(f => !f.is_suppressed && f.severity === 'high').length,
-        medium: findings.filter(f => !f.is_suppressed && f.severity === 'medium').length,
-        low: findings.filter(f => !f.is_suppressed && f.severity === 'low').length,
+        critical: findings.filter(f => f.severity === 'critical').length,
+        high: findings.filter(f => f.severity === 'high').length,
+        medium: findings.filter(f => f.severity === 'medium').length,
+        low: findings.filter(f => f.severity === 'low').length,
         suppressed: findings.filter(f => f.is_suppressed).length
     };
 
@@ -376,7 +376,7 @@ export default function ScanDetailPage() {
                                     onClick={() => setActiveTab('active')}
                                     className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'active' ? 'bg-white text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
                                 >
-                                    Confirmed Findings ({findings.length - counts.suppressed})
+                                    All Findings ({findings.length})
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('suppressed')}
