@@ -262,11 +262,60 @@ class SQLInjectionAgent(BaseSecurityAgent):
         payloads = self._select_payloads(detected_db)
         self.log(f"Using {len(payloads)} payloads for testing")
 
+        # Normalize endpoints to include query params from URL if present
+        normalized_endpoints = []
+        for ep in endpoints[:SQLInjectionConfig.MAX_ENDPOINTS]:
+            ep_copy = dict(ep)
+            params = ep_copy.get("params") or {}
+            if not params:
+                try:
+                    parsed = urlparse(ep_copy.get("url", ""))
+                    if parsed.query:
+                        parsed_params = parse_qs(parsed.query, keep_blank_values=True)
+                        params = {
+                            k: (v[0] if isinstance(v, list) and v else "")
+                            for k, v in parsed_params.items()
+                        }
+                except Exception:
+                    params = params or {}
+
+            if params:
+                ep_copy["params"] = params
+
+            normalized_endpoints.append(ep_copy)
+
         # Filter endpoints with parameters
         testable_endpoints = [
-            ep for ep in endpoints[:SQLInjectionConfig.MAX_ENDPOINTS]
+            ep for ep in normalized_endpoints
             if ep.get("params")
         ]
+
+        # If none found, create a small set of safe parameter guesses
+        if not testable_endpoints:
+            def _guess_params_for_url(url: str) -> Dict[str, str]:
+                url_lower = (url or "").lower()
+                if "search" in url_lower:
+                    return {"q": "test"}
+                if any(k in url_lower for k in ["item", "product", "detail", "view", "id"]):
+                    return {"id": "1"}
+                return {"id": "1"}
+
+            guessed = []
+            for ep in normalized_endpoints[:5]:
+                method = (ep.get("method") or "GET").upper()
+                if method != "GET":
+                    continue
+                guessed_params = _guess_params_for_url(ep.get("url", ""))
+                if guessed_params:
+                    ep_copy = dict(ep)
+                    ep_copy["params"] = guessed_params
+                    guessed.append(ep_copy)
+
+            if guessed:
+                self.log(
+                    f"No parameterized endpoints discovered; using {len(guessed)} guessed parameter endpoints"
+                )
+                testable_endpoints = guessed
 
         self.log(f"Testing {len(testable_endpoints)} endpoints with parameters")
 
