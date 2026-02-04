@@ -1375,6 +1375,23 @@ class BaseSecurityAgent(ABC):
                 ai_analysis.get("exploitability_conditions", "")
         )
 
+        # Pop remediation from kwargs if provided (avoid duplicate keyword argument)
+        remediation_from_kwargs = kwargs.pop('remediation', None)
+        
+        # Determine which remediation to use (kwargs takes precedence)
+        if remediation_from_kwargs:
+            remediation_value = remediation_from_kwargs
+            remediation_code_value = kwargs.pop('remediation_code', "")
+        else:
+            # Extract from ai_analysis
+            remediation_ai = ai_analysis.get("remediation", {})
+            if isinstance(remediation_ai, dict):
+                remediation_value = remediation_ai.get("short_term", "")
+                remediation_code_value = remediation_ai.get("code_example", "")
+            else:
+                remediation_value = str(remediation_ai) if remediation_ai else ""
+                remediation_code_value = kwargs.pop('remediation_code', "")
+        
         return self.create_result(
             vulnerability_type=vulnerability_type,
             is_vulnerable=ai_analysis.get("is_vulnerable", True),
@@ -1391,8 +1408,8 @@ class BaseSecurityAgent(ABC):
             root_cause=ai_analysis.get("root_cause", ""),
             business_impact=ai_analysis.get("business_impact", ""),
             compliance_mapping=ai_analysis.get("compliance_mapping", {}),
-            remediation=ai_analysis.get("remediation", {}).get("short_term", "") if isinstance(ai_analysis.get("remediation"), dict) else ai_analysis.get("remediation", ""),
-            remediation_code=ai_analysis.get("remediation", {}).get("code_example", "") if isinstance(ai_analysis.get("remediation"), dict) else "",
+            remediation=remediation_value,
+            remediation_code=remediation_code_value,
             likelihood=likelihood,
             impact=impact,
             exploitability_rationale=exploitability,
