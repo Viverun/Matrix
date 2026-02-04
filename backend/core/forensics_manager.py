@@ -67,14 +67,17 @@ class ForensicManager:
         Initialize a new forensic record for a scan.
         Activated automatically when a scan starts.
         """
+        logger.info(f"[FORENSICS] Initializing forensic session for scan {scan_id}")
         try:
             # Check if record already exists
             result = await db.execute(select(ForensicRecord).where(ForensicRecord.scan_id == scan_id))
             record = result.scalar_one_or_none()
             
             if record:
-                logger.info(f"Forensic session already exists for scan {scan_id}")
+                logger.info(f"[FORENSICS] Forensic session already exists for scan {scan_id}: {record.evidence_id}")
                 return record
+
+            logger.debug(f"[FORENSICS] Creating new ForensicRecord for scan {scan_id}")
 
             # Gather environment metadata
             import sys
@@ -96,6 +99,8 @@ class ForensicManager:
             db.add(record)
             await db.flush() # Get the ID
             
+            logger.debug(f"[FORENSICS] Created ForensicRecord id={record.id}, evidence_id={record.evidence_id}")
+
             # Initial event
             await self.log_timeline_event(
                 scan_id=scan_id,
@@ -105,11 +110,11 @@ class ForensicManager:
                 db=db
             )
             
-            logger.info(f"Initialized forensic record {record.evidence_id} for scan {scan_id}")
+            logger.info(f"[FORENSICS] Initialized forensic record {record.evidence_id} for scan {scan_id}")
             return record
 
         except Exception as e:
-            logger.error(f"Failed to initialize forensic session for scan {scan_id}: {e}")
+            logger.error(f"[FORENSICS] Failed to initialize forensic session for scan {scan_id}: {e}", exc_info=True)
             return None
 
     async def log_timeline_event(
@@ -172,10 +177,12 @@ class ForensicManager:
             rec_id = res.scalar_one_or_none()
             
             if not rec_id:
+                logger.warning(f"[FORENSICS] No forensic record found for scan {scan_id} to attach artifact '{name}'")
                 return None
 
             # Calculate hash of raw data
             h = self._calculate_hash(data)
+            logger.debug(f"[FORENSICS] Recording artifact '{name}' (type={artifact_type}) with hash={h[:8]}...")
             
             # Convert to string if bytes
             if isinstance(data, bytes):
@@ -214,21 +221,28 @@ class ForensicManager:
             manifest = record.hash_manifest or {}
             manifest[artifact.artifact_evidence_id] = h
             record.hash_manifest = manifest
+            await db.flush()  # Flush the manifest update
             
+            logger.debug(f"[FORENSICS] Successfully recorded artifact {artifact.artifact_evidence_id}")
             return artifact
 
         except Exception as e:
-            logger.error(f"Failed to record artifact for scan {scan_id}: {e}")
+            logger.error(f"[FORENSICS] Failed to record artifact for scan {scan_id}: {e}", exc_info=True)
             return None
 
     async def finalize_forensic_session(self, scan_id: int, db: AsyncSession):
         """Finalize the forensic record and generate the sum summary hash."""
+        logger.info(f"[FORENSICS] Starting finalization for scan {scan_id}")
         try:
+            logger.debug(f"[FORENSICS] Querying ForensicRecord for scan_id={scan_id}")
             result = await db.execute(select(ForensicRecord).where(ForensicRecord.scan_id == scan_id))
             record = result.scalar_one_or_none()
             
             if not record:
+                logger.warning(f"[FORENSICS] No forensic record found for scan {scan_id} during finalization")
                 return
+
+            logger.debug(f"[FORENSICS] Found record {record.id} with evidence_id={record.evidence_id}")
 
             await self.log_timeline_event(
                 scan_id=scan_id,
@@ -239,18 +253,25 @@ class ForensicManager:
             )
 
             # Generate whole-scan hash (hash of the manifest + metadata)
+            logger.debug(f"[FORENSICS] Building scan_data for hashing. manifest={record.hash_manifest}, env={record.environment_metadata}")
             scan_data = {
                 "evidence_id": record.evidence_id,
                 "scan_id": record.scan_id,
                 "manifest": record.hash_manifest,
                 "env": record.environment_metadata
             }
+            old_hash = record.scan_hash
             record.scan_hash = self._calculate_hash(scan_data)
+            logger.debug(f"[FORENSICS] Calculated new scan_hash: {record.scan_hash} (was: {old_hash})")
             
-            logger.info(f"Finalized forensic session for scan {scan_id}. Scan Hash: {record.scan_hash}")
+            # Commit the finalization
+            logger.debug(f"[FORENSICS] Committing database transaction for scan {scan_id}")
+            await db.commit()
+            logger.info(f"[FORENSICS] Finalized forensic session for scan {scan_id}. Scan Hash: {record.scan_hash}")
             
         except Exception as e:
-            logger.error(f"Failed to finalize forensic session for scan {scan_id}: {e}")
+            logger.error(f"[FORENSICS] Failed to finalize forensic session for scan {scan_id}: {e}", exc_info=True)
+            raise
 
     async def generate_bundle(self, scan_id: int, db: AsyncSession) -> Optional[str]:
         """Generate a ZIP bundle containing all forensic evidence for a scan."""
