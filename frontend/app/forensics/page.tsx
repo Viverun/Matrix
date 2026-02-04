@@ -31,11 +31,13 @@ interface ForensicRecord {
 export default function ForensicsPage() {
     const [records, setRecords] = useState<ForensicRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiPath = (path: string) => `${apiBase}${path}`;
 
     useEffect(() => {
         const fetchRecords = async () => {
             try {
-                const response = await fetch('/api/forensics/');
+                const response = await fetch(apiPath('/api/forensics/'));
                 if (response.ok) {
                     const data = await response.json();
                     setRecords(data);
