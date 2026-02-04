@@ -271,15 +271,16 @@ async def start_scan(
     logger.info(f"Starting scan {scan_id} for target: {scan.target_url}")
     
     # Queue scan for execution
+    from workers import _run_scan_async
     if RQ_AVAILABLE:
         job_id = enqueue_scan(scan.id)
         if job_id:
             logger.info(f"Scan {scan.id} enqueued with job ID: {job_id}")
         else:
             logger.warning(f"RQ enqueue failed for scan {scan.id}, using BackgroundTasks")
-            background_tasks.add_task(run_scan_task, scan.id)
+            background_tasks.add_task(_run_scan_async, scan.id)
     else:
-        background_tasks.add_task(run_scan_task, scan.id)
+        background_tasks.add_task(_run_scan_async, scan.id)
         logger.info(f"Scan {scan.id} queued via BackgroundTasks (fallback)")
     
     return ScanResponse.model_validate(scan)

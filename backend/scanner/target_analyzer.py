@@ -475,7 +475,7 @@ class TargetAnalyzer:
                 soup = BeautifulSoup(response.text, "xml")
                 locs = [loc.get_text().strip() for loc in soup.find_all("loc") if loc.get_text()]
                 if not locs:
-                    locs = re.findall(r"https?://[^\s<>"]+", response.text)
+                    locs = re.findall(r'https?://[^\s<>"\']+', response.text)
 
                 for loc in locs[:200]:
                     parsed = urlparse(loc)
