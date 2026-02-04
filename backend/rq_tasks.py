@@ -13,6 +13,10 @@ from sqlalchemy import select
 
 from core.database import async_session_maker
 from core.logger import get_logger
+# Import all models to ensure SQLAlchemy registry is fully initialized
+# This prevents "failed to locate a name" errors in worker processes
+from models.user import User
+from models.user_settings import UserSettings
 from models.scan import Scan, ScanStatus
 from models.vulnerability import Vulnerability
 from agents.orchestrator import AgentOrchestrator
