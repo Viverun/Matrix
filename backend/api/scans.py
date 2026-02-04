@@ -21,14 +21,20 @@ from api.deps import get_current_user
 # Initialize logger
 logger = get_logger(__name__)
 
-# Try to import RQ, fall back to legacy worker if unavailable
+# Initialize RQ functions as None - will be set if available
+enqueue_scan = None
+get_job_status = None
+cancel_scan_job = None
+RQ_AVAILABLE = False
+
+# Try to import RQ functions
 try:
-    from rq_tasks import enqueue_scan, get_job_status
+    from rq_tasks import enqueue_scan, get_job_status, cancel_scan_job
     RQ_AVAILABLE = True
     logger.info("RQ task queue available - using distributed workers")
-except ImportError:
-    RQ_AVAILABLE = False
-    logger.warning("RQ not available - falling back to BackgroundTasks")
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning(f"RQ import failed: {e}")
+    logger.warning("Falling back to FastAPI BackgroundTasks for scan execution")
 
 
 
@@ -109,18 +115,23 @@ async def create_scan(
     
     # Queue scan for execution
     from workers import _run_scan_async
-    if RQ_AVAILABLE:
-        job_id = enqueue_scan(new_scan.id)
-        if job_id:
-            logger.info(f"Scan {new_scan.id} enqueued with job ID: {job_id}")
-        else:
-            # Fallback if enqueue fails
-            logger.warning(f"RQ enqueue failed for scan {new_scan.id}, using BackgroundTasks")
+    if RQ_AVAILABLE and enqueue_scan:
+        try:
+            job_id = enqueue_scan(new_scan.id)
+            if job_id:
+                logger.info(f"Scan {new_scan.id} enqueued with job ID: {job_id}")
+            else:
+                # Fallback if enqueue fails
+                logger.warning(f"RQ enqueue failed for scan {new_scan.id}, using BackgroundTasks")
+                background_tasks.add_task(_run_scan_async, new_scan.id)
+        except Exception as e:
+            logger.error(f"Exception enqueueing scan {new_scan.id}: {e}", exc_info=True)
             background_tasks.add_task(_run_scan_async, new_scan.id)
     else:
         # Fallback to BackgroundTasks
+        if not RQ_AVAILABLE:
+            logger.info(f"RQ not available, queuing scan {new_scan.id} via BackgroundTasks")
         background_tasks.add_task(_run_scan_async, new_scan.id)
-        logger.info(f"Scan {new_scan.id} queued via BackgroundTasks (fallback)")
     
     return ScanResponse.model_validate(new_scan)
 
@@ -308,10 +319,12 @@ async def cancel_scan(
     await db.refresh(scan)
     
     # Attempt to cancel the background task
-    if RQ_AVAILABLE:
-        from rq_tasks import cancel_scan_job
-        cancelled = cancel_scan_job(scan_id)
-        if cancelled:
-            logger.info(f"Background job cancelled for scan {scan_id}")
+    if RQ_AVAILABLE and cancel_scan_job:
+        try:
+            cancelled = cancel_scan_job(scan_id)
+            if cancelled:
+                logger.info(f"Background job cancelled for scan {scan_id}")
+        except Exception as e:
+            logger.warning(f"Failed to cancel scan job: {e}")
             
     return ScanResponse.model_validate(scan)
