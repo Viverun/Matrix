@@ -108,8 +108,14 @@ async def get_artifact_detail(scan_id: int, artifact_id: str, db: AsyncSession =
 async def export_forensic_bundle(scan_id: int, db: AsyncSession = Depends(get_db)):
     """Generate and download a forensic ZIP bundle."""
     bundle_path = await forensic_manager.generate_bundle(scan_id, db)
-    if not bundle_path or not os.path.exists(bundle_path):
+    if not bundle_path:
         raise HTTPException(status_code=500, detail="Failed to generate forensic bundle")
+    
+    if not os.path.exists(bundle_path):
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Forensic bundle file not found at {bundle_path}. Possible permission or storage issue."
+        )
         
     return FileResponse(
         path=bundle_path,

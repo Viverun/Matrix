@@ -33,9 +33,22 @@ class ForensicManager:
         if self._initialized:
             return
         self._initialized = True
-        self.export_dir = "forensic_bundles"
-        if not os.path.exists(self.export_dir):
-            os.makedirs(self.export_dir)
+        
+        # Use /tmp for ephemeral storage on containerized environments
+        # Falls back to ./forensic_bundles for local development
+        if os.path.exists('/tmp'):
+            self.export_dir = '/tmp/forensic_bundles'
+        else:
+            self.export_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'forensic_bundles')
+        
+        # Ensure directory exists and is writable
+        try:
+            os.makedirs(self.export_dir, mode=0o755, exist_ok=True)
+            logger.info(f"Forensic bundles directory: {self.export_dir}")
+        except Exception as e:
+            logger.warning(f"Could not create forensic_bundles directory: {e}")
+            # Fallback to /tmp as last resort
+            self.export_dir = '/tmp'
 
     def _calculate_hash(self, data: Union[str, bytes, Dict[str, Any]]) -> str:
         """Generate SHA-256 hash for various data types."""
@@ -281,14 +294,19 @@ class ForensicManager:
                     filename = f"artifacts/{art.artifact_evidence_id}_{art.name.replace(' ', '_')}.{file_ext}"
                     zipf.writestr(filename, art.raw_data or "")
             
+            # Verify bundle was created
+            if not os.path.exists(bundle_path):
+                raise Exception(f"Bundle file was not created at {bundle_path}")
+            
             # Update record
             record.bundle_path = bundle_path
             record.last_exported_at = datetime.now(timezone.utc)
             await db.commit()
             
+            logger.info(f"Successfully generated forensic bundle for scan {scan_id} at {bundle_path}")
             return bundle_path
         except Exception as e:
-            logger.error(f"Failed to generate forensic bundle for scan {scan_id}: {e}")
+            logger.error(f"Failed to generate forensic bundle for scan {scan_id}: {e}", exc_info=True)
             return None
 
     async def generate_summary_report(self, scan_id: int, db: AsyncSession) -> Optional[Dict[str, Any]]:
