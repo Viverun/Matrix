@@ -1,6 +1,18 @@
 # Matrix Deployment Guide
 
-This guide explains how to deploy the Matrix project with the **Backend on Render**, **DBs on Railway**, and **Frontend on Vercel**.
+This guide explains how to deploy the Matrix project. Choose your deployment platform:
+
+### Platform Options
+- **Option A**: Backend on Render + DBs on Railway + Frontend on Vercel
+- **Option B**: Backend on Render + PostgreSQL on Render + Redis on Render + Frontend on Vercel (Recommended)
+
+> **Recommendation**: Use **Option B** (Render for everything) for simplicity, better support, and more reliable infrastructure.
+
+For **Option B**, see:
+- [RENDER_DEPLOYMENT_GUIDE.md](RENDER_DEPLOYMENT_GUIDE.md) - Detailed step-by-step guide
+- [RENDER_SETUP_CHECKLIST.md](RENDER_SETUP_CHECKLIST.md) - Interactive checklist to track progress
+
+---
 
 ## 1. Backend Deployment (Render or Koyeb) - Combined Service
 

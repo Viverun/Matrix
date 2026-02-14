@@ -1,0 +1,78 @@
+# Render Deployment Configuration
+# This file defines your Matrix backend service for Render
+# 
+# How to use:
+# 1. Ensure this file is in your repository root (or in a subdirectory)
+# 2. Connect your GitHub repo to Render
+# 3. Render will automatically detect and use this configuration
+#
+# Note: PostgreSQL and Redis databases must be created manually through the Render dashboard
+# because Render currently doesn't support database creation via YAML (as of 2024)
+
+services:
+  - type: web
+    name: matrix-backend
+    repo: YOUR_GITHUB_REPO_URL  # e.g., https://github.com/yourusername/Matrix
+    runtime: docker
+    rootDir: backend
+    
+    # Health check to monitor service status
+    healthCheckPath: /health
+    
+    # Deployment settings
+    dockerfilePath: Dockerfile
+    dockerContext: ./backend
+    
+    # Environment variables (these will be overridden by Render dashboard values)
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: PORT
+        value: "8080"
+      - key: APP_NAME
+        value: Matrix
+      
+      # Groq API Keys (set these in Render dashboard)
+      - key: GROQ_API_KEY_SCANNER
+        scope: SERVICE
+      - key: GROQ_API_KEY_REPO
+        scope: SERVICE
+      - key: GROQ_API_KEY_CHATBOT
+        scope: SERVICE
+      - key: GROQ_API_KEY_FALLBACK
+        scope: SERVICE
+      
+      # Database URLs (MUST be set in Render dashboard, not here)
+      - key: DATABASE_URL
+        scope: SERVICE
+      - key: REDIS_URL
+        scope: SERVICE
+      
+      # Secrets (set in Render dashboard)
+      - key: SECRET_KEY
+        scope: SERVICE
+      - key: GITHUB_TOKEN
+        scope: SERVICE
+      - key: ALLOWED_ORIGINS
+        scope: SERVICE
+
+# Databases created manually via Render dashboard (not via YAML)
+# Instructions to create:
+#
+# 1. PostgreSQL Database:
+#    - Go to Render Dashboard → Create → PostgreSQL
+#    - Name: matrix-postgres
+#    - Database: matrix
+#    - Username: matrix
+#    - Version: 16 (latest)
+#    - Copy the External Database URL
+#    - Add to environment as DATABASE_URL
+#
+# 2. Redis Database:
+#    - Go to Render Dashboard → Create → Redis
+#    - Name: matrix-redis
+#    - Max Memory Policy: allkeys-lru
+#    - Copy the Redis URL
+#    - Add to environment as REDIS_URL
