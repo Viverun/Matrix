@@ -4,12 +4,8 @@ echo "=== Matrix Backend Starting ==="
 echo "PORT: $PORT"
 echo "Environment: $ENVIRONMENT"
 
-# Run database migrations
-echo "Running database migrations..."
-alembic upgrade head
-if [ $? -ne 0 ]; then
-    echo "WARNING: Migration failed, but continuing startup..."
-fi
+# Tables are created automatically by SQLAlchemy on first run
+# (See core/database.py for table initialization)
 
 # Start the background worker (don't fail if Redis is unavailable)
 echo "Starting RQ Worker..."
