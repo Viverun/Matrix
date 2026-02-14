@@ -29,7 +29,7 @@ export class MatrixApiClient {
         return null;
     }
 
-    private extractErrorMessage(errorData: any, status: number): string {
+    private extractErrorMessage(errorData: any, status: number, endpoint?: string): string {
         let message: string;
         if (typeof errorData.detail === 'string') {
             message = errorData.detail;
@@ -43,7 +43,8 @@ export class MatrixApiClient {
             message = `HTTP error ${status}`;
         }
 
-        if (message === 'Could not validate credentials' || status === 401) {
+        const isAuthEndpoint = endpoint?.includes('/api/auth/login/') || endpoint?.includes('/api/auth/register/');
+        if (!isAuthEndpoint && (message === 'Could not validate credentials' || status === 401)) {
             return 'Session expired. Please log in again.';
         }
         return message;
@@ -105,7 +106,7 @@ export class MatrixApiClient {
 
                         if (!retryResponse.ok) {
                             const errorData = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }));
-                            throw new Error(this.extractErrorMessage(errorData, retryResponse.status));
+                            throw new Error(this.extractErrorMessage(errorData, retryResponse.status, endpoint));
                         }
 
                         return retryResponse.json();
@@ -117,7 +118,7 @@ export class MatrixApiClient {
 
             if (!response.ok) {
                 const errorData: any = await response.json().catch(() => ({ detail: 'Unknown error' }));
-                const message = this.extractErrorMessage(errorData, response.status);
+                const message = this.extractErrorMessage(errorData, response.status, endpoint);
 
                 console.error('[API] Request failed:', { endpoint, status: response.status, message, data: errorData });
                 throw new Error(message);
